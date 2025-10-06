@@ -36,16 +36,16 @@ for i = 1:length(fields)
     maps120.(f) = griddedInterpolant({rpm_vec, T_vec}, data120.(f), 'linear','nearest');
 end
 
-% Temperature blending (temp solution... I think)
-tempBlend = @(map80,map120,rpmq,Tq,Tm) ...
-    ((max(0,min(1,(Tm-80)/(120-80)))) .* map120(rpmq,Tq) + ...
-    (1-max(0,min(1,(Tm-80)/(120-80)))) .* map80(rpmq,Tq));
-
 % Example query (test with limits)
 rpm_q  = 8000;   % rpm
 Tq_req = 15;     % requested torque [Nm]
 Tmotor = 95;     % degC
 
+
+% Temperature blending (temp solution... I think)
+tempBlend = @(map80,map120,rpmq,Tq,Tm) ...
+    clip((Tm-80)/(120-80), 0, 1) .* map120(rpmq,Tq) + ...
+    (1-clip((Tm-80)/(120-80), 0, 1)) .* map80(rpmq,Tq);
 % Interpolated values
 Iq_val = tempBlend(maps80.Iq_RMS, maps120.Iq_RMS, rpm_q, Tq_req, Tmotor);
 Id_val = tempBlend(maps80.Id_RMS, maps120.Id_RMS, rpm_q, Tq_req, Tmotor);

@@ -12,7 +12,7 @@ function out = motor_map_model_function(rpm_q, Tq_req, Tmotor, maps80, maps120, 
 
 
 
-    alpha = max(0,min(1,(Tmotor-80)/(120-80)));
+    alpha = clamp((Tmotor-80)/(120-80), 0, 1);
     % Interpolated values
     Iq_val = (1-alpha)*maps80.Iq_RMS(rpm_q,Tq_req)   + alpha*maps120.Iq_RMS(rpm_q,Tq_req);
     Id_val = (1-alpha)*maps80.Id_RMS(rpm_q,Tq_req)   + alpha*maps120.Id_RMS(rpm_q,Tq_req);
