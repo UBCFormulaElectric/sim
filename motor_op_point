@@ -1,0 +1,201 @@
+function res = motor_op_point(V_dc, T_dmd, Temp)
+%
+% Inputs:
+%   V_dc  - DC bus / peak-phase voltage limit (V)
+%   T_dmd - requested electromagnetic torque (Nm)
+%   Temp  - temperature selector (use 80-120 ideally; nearest file chosen otherwise)
+%
+% Output (struct res):
+%   res.I_op_idx   - column index in table
+%   res.I_op       - approximated phase current (A) corresponding to column
+%   res.T_emg_op   - Electromagnetic torque value found (Nm)
+%   res.V_op       - phase-peak voltage found (same units as Voltage_Phase_Peak)
+%   res.S_op       - speed (rpm) corresponding to V_op
+%   res.currents   - vector of current axis (A)
+%   res.speeds     - vector of speed axis (rpm)
+%   res.notes      - cell array of explanatory strings
+
+%% 1) Load the appropriate data file (choose nearest available Temp)
+availableTemps = [80 100 120];
+[~, idxNearest] = min(abs(availableTemps - Temp));
+chosenTemp = availableTemps(idxNearest);
+
+switch chosenTemp
+    case 80
+        dat = load('A2370DD_T80C.mat');
+    case 100
+        dat = load('A2370DD_T100C.mat');
+    case 120
+        dat = load('A2370DD_T120C.mat');
+    otherwise
+        error('Unexpected temperature selection.');
+end
+
+notes = {};
+notes{end+1} = sprintf('Using data file for %d C (closest to requested %g C).', chosenTemp, Temp);
+
+Tmat = dat.Electromagnetic_Torque;
+Vmat = dat.Voltage_Phase_Peak;
+
+% Matrix sizes
+[NR, NC] = size(Tmat);
+% Derive speed and current axes from matrix dimensions:
+% assume speeds from 0 to 20000 rpm across NR rows (uniform)
+% assume currents from 0 to 105 A across NC columns (uniform)
+speeds = linspace(0,20000,NR).';      % column vector, rpm
+currents = linspace(0,105,NC);       % row vector, A
+
+% Save axes to results
+res.currents = currents;
+res.speeds = speeds;
+
+%% 2) Find minimum current column that can achieve T_dmd at any speed
+% Torque decreases with speed, so check full column, not just first row.
+
+found_point = false;
+found_col = NaN;
+found_row = NaN;
+
+for col = NC:-1:1                         % right -> left (highest current first)
+    % search rows from high speed down to low speed (bottom -> top)
+    for row = NR:-1:1
+        if Tmat(row,col) >= T_dmd
+            % Found a torque-capable point at (row,col)
+            found_point = true;
+            found_col = col;
+            found_row = row;
+            notes{end+1} = sprintf('Torque-only candidate found at column %d (I=%.3g A), row %d (speed %.1f rpm) with T=%.3g Nm.', ...
+                                   col, currents(col), row, speeds(row), Tmat(row,col));
+            break; % stop scanning rows for this column (we want the highest speed in this column)
+        end
+    end
+    if found_point
+        break; % stop scanning columns when first (rightmost) column with a valid row is found
+    end
+end
+
+if ~found_point
+    % No column/row meets torque demand anywhere
+    % Fallback: choose maximum torque available at max current column
+    [T_emg_op_max, row_idx_max] = max(Tmat(:,NC));
+    res.I_op_idx = NC;
+    res.I_op = currents(NC);
+    res.T_emg_op = T_emg_op_max;
+    res.S_op = speeds(row_idx_max);
+    res.V_op = Vmat(row_idx_max, NC);
+    notes{end+1} = sprintf(['Demanded torque (%.3g Nm) cannot be produced at any point in the map. ', ...
+                           'Returning best-effort: max current column %d (I=%.3g A) with max torque %.3g Nm at speed %.1f rpm.'], ...
+                           T_dmd, NC, currents(NC), T_emg_op_max, speeds(row_idx_max));
+    res.notes = notes;
+    return;
+end
+
+% Record the torque-only candidate
+I_op_idx = found_col;
+row_idx   = found_row;
+T_emg_op      = Tmat(row_idx, I_op_idx);
+
+res.I_op_idx = I_op_idx;
+res.I_op     = currents(I_op_idx);
+res.T_emg_op     = T_emg_op;
+
+
+%% 3) In the found column, search Voltage_Phase_Peak(:,I_op_idx) for largest value <= V_dc
+V_op = NaN;
+S_op = NaN;
+final_found = false;
+epsV = 1e-3; %because some of the values are just slightly off
+
+col = I_op_idx;
+while col >= 1 && ~final_found
+    % For each column, determine the maximum speed for which torque >= T_dmd.
+    % Because we moved columns earlier, the current column might be different now.
+    % Find highest-speed row in this column where T >= T_dmd (if any).
+    rows_torque = find(Tmat(:,col) >= T_dmd);
+    if isempty(rows_torque)
+        % this column cannot meet torque: move left
+        notes{end+1} = sprintf('Column %d (I=%.3g A) cannot meet torque; move left.', col, currents(col));
+        col = col - 1;
+        continue;
+    end
+    % highest-speed row meeting torque in this column:
+    candidate_row = rows_torque(end);
+
+    % Starting from candidate_row and moving toward lower speeds (smaller row index),
+    % find first row where V <= V_dc
+    vcol = Vmat(:,col);
+    le_rows = find(vcol(1:candidate_row) <= V_dc + epsV); % only consider rows up to candidate_row
+    if ~isempty(le_rows)
+        % choose the largest row index in le_rows (closest to candidate_row)
+        selected_row = le_rows(end);
+        V_op = vcol(selected_row);
+        S_op = speeds(selected_row);
+        I_op_idx = col;
+        T_emg_op = Tmat(selected_row, col);
+        final_found = true;
+        notes{end+1} = sprintf('Voltage constraint satisfied at column %d (I=%.3g A), row %d (speed %.1f rpm): V_op=%.3g <= V_dc=%.3g.', ...
+                               col, currents(col), selected_row, S_op, V_op, V_dc);
+        break;
+    else
+        % This column cannot satisfy voltage at any torque-capable speed -> move left
+        notes{end+1} = sprintf('Column %d (I=%.3g A) had no rows <= V_dc up to its torque-capable max speed; move left.', ...
+                               col, currents(col));
+        col = col - 1;
+    end
+end
+
+if ~final_found
+    % Could not find any (col,row) that satisfies both T and V
+    V_op = NaN;
+    S_op = NaN;
+    notes{end+1} = 'Searched leftwards but did not find any operating point that satisfies both torque and voltage constraints.';
+end
+
+res.V_op = V_op;
+res.S_op = S_op;
+
+%% 4) Extract remaining outputs if an operable point exists
+if ~isnan(V_op) && ~isnan(S_op)
+
+    % Extract additional maps
+    if isfield(dat, 'Shaft_Torque')
+        res.T_Shaft = dat.Shaft_Torque(selected_row, I_op_idx);
+    else
+        res.T_Shaft = NaN;
+        notes{end+1} = 'Shaft_Torque map missing from data file.';
+    end
+
+    if isfield(dat, 'Stator_Current_Phase_RMS')
+        res.I_phase = dat.Stator_Current_Phase_RMS(selected_row, I_op_idx);
+    else
+        res.I_phase = NaN;
+        notes{end+1} = 'Stator_Current_Phase_RMS map missing from data file.';
+    end
+
+    if isfield(dat, 'Mechanical_Loss')
+        res.Mech_loss = dat.Mechanical_Loss(selected_row, I_op_idx);
+    else
+        res.Mech_loss = NaN;
+        notes{end+1} = 'Mechanical_Loss map missing from data file.';
+    end
+
+    if isfield(dat, 'Power_Factor')
+        res.Pf = dat.Power_Factor(selected_row, I_op_idx);
+    else
+        res.Pf = NaN;
+        notes{end+1} = 'Power_Factor map missing from data file.';
+    end
+
+else
+    % No operable point → everything NaN
+    res.T_emg    = NaN;
+    res.T_Shaft  = NaN;
+    res.I_phase  = NaN;
+    res.Mech_loss= NaN;
+    res.Pf       = NaN;
+    notes{end+1} = 'No valid operating point. Additional outputs set to NaN.';
+end
+
+res.notes = notes;
+
+end
