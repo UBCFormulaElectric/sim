@@ -1,0 +1,24 @@
+%% Script to call motor_op_point function
+
+% input parameters
+V_dc = 600;       % DC bus / peak-phase voltage limit (V)
+T_dmd = 20;     % Requested electromagnetic torque (Nm)
+Temp = 100;        % Temperature (Celsius)
+S_op = 15000;
+
+% Call the motor operating point function
+res = motor_op_point(V_dc, T_dmd, Temp, S_op);
+
+%% Display results
+fprintf('Motor Operating Point Results:\n');
+fprintf('------------------------------------\n');
+fprintf('Operating Current: %d\n', res.I_op);
+fprintf('Phase current (Arms): %.3f\n', res.I_phase);
+fprintf('Shaft Torque achieved (Nm): %.3f\n', res.T_Shaft);
+fprintf('Phase-peak voltage (V): %.3f\n', res.V_op);
+fprintf('Speed (rpm): %.1f\n', res.S_op);
+fprintf('Total Loss (W): %.2f\n', res.Total_Loss);
+fprintf('\nNotes:\n');
+for k = 1:length(res.notes)
+    fprintf(' - %s\n', res.notes{k});
+end
