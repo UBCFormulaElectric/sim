@@ -22,21 +22,25 @@ pack_v_nominal = cell_v_nominal * 140;
 pack_ocv_table = repmat(pack_v_nominal, 1, 3);
 
 % 4. INTERNAL RESISTANCE (7x3 Matrix)
-% Base Cell Resistance (23C) derived from Impedance Graph (~23.5mOhm avg)
-% Scaled to 140S 5P Pack: 0.0235 * (140/5) = 0.658 Ohms
+% Base Cell Resistance (23C) derived from Impedance Graph (P30B Specific)
+% Values: [30, 24.5, 24.8, 23.5, 23.2, 25, 28] mOhm
 cell_r_nominal = [0.030, 0.0245, 0.0248, 0.0235, 0.0232, 0.025, 0.028]';
+
+% Scaled to 140S 5P Pack (x28)
 pack_r_nominal_vec = cell_r_nominal * 28;
 
 % Temperature Scaling Factors [Cold(0C), Nominal(23C), Hot(60C)]
 % Cold = 2x resistance, Hot = 0.8x resistance
 temp_scaling = [2.0, 1.0, 0.8]; 
+test_temp_scaling = [2.0, 1.05, 0.8];
 
 % Create 7x3 Matrix
 % Multiplies the Column (SOC) by the Row (Temp Scaling)
 pack_r0_table = pack_r_nominal_vec * temp_scaling;
+test_pack_r0_table = pack_r_nominal_vec * test_temp_scaling;
 
 % 5. EKF SPECIFIC PARAMETERS
-% The EKF is simpler and currently expects a scalar or single vector.
-% We give it the "Nominal" (23C) values to start.
-R_int_ekf = 0.658; % Average nominal resistance
+% The EKF uses a constant average. 
+% New Average of pack_r_nominal_vec is approx 0.716 Ohms
+R_int_ekf = 0.716; 
 dt = 0.01;
