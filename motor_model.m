@@ -83,7 +83,7 @@ function res = motor_model_func(V_dc, T_dmd, Temp, S_op)
     % round S_op to nearest increment of 20000/rows
     speed_inc = 20000/(rows - 1);
     S_idx = S_op / speed_inc;
-    current_inc = 25/(cols - 1);
+    current_inc = 105/(cols - 1);
     
     % find current limit from voltage
     V = bilinear_interpolation(t1.Voltage_Phase_Peak, t2.Voltage_Phase_Peak, S_idx, fracT);
