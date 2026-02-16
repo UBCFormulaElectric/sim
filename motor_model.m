@@ -1,9 +1,13 @@
+clear
+clc
+
 % Load files
 fileFor = @(t) sprintf('A2370DD_T%dC.mat',t);
+global data80 data100 data120
 data80 = load(fileFor(80));
 data100 = load(fileFor(100));
 data120 = load(fileFor(120));
-
+%% 
 % quicky bilinear interpolation
 function m = bilinear_interpolation(mat_t1, mat_t2, S_idx, fracT)
     % S_idx is the decimal index of speed. The integer part represents the
@@ -86,10 +90,10 @@ function res = motor_model_func(V_dc, T_dmd, Temp, S_op)
     V_find = find(diff(V > V_dc) == 1, 1); % find lmao
     if isempty(V_find)
         % figure out if you are too low or too high
-        if T_dmd < V(1)
-            V_cur_lim_idx = 0;
+        if V_dc < V(1)
+            V_cur_lim_idx = 1;
         else
-            V_cur_lim_idx = cols * current_inc;
+            V_cur_lim_idx = cols;
         end
     else
         % note that tq_find+1 as tq_find in [1,n-1] (as difference array
@@ -103,9 +107,9 @@ function res = motor_model_func(V_dc, T_dmd, Temp, S_op)
     if isempty(Tq_find)
         % figure out if you are too low or too high
         if T_dmd < Tq(1)
-            Tq_cur_lim_idx= 0;
+            Tq_cur_lim_idx= 1;
         else
-            Tq_cur_lim_idx = 25;
+            Tq_cur_lim_idx = cols;
         end
     else
         % note that tq_find+1 as tq_find in [1,n-1] (as difference array
@@ -114,7 +118,11 @@ function res = motor_model_func(V_dc, T_dmd, Temp, S_op)
     end
     
     % find the current draw
+    %fprintf("Voltage Current Limit: %fA, Torque Current Limit: %fA\n", (V_cur_lim_idx - 1) * current_inc, (Tq_cur_lim_idx - 1) * current_inc);
     I_idx = min(Tq_cur_lim_idx, V_cur_lim_idx);
+
+    %fprintf("Speed Interp: %f Current Interp: %f Temperature Interp: %f\n", S_idx, I_idx, fracT);
+    %fprintf("Speed: %fRPM Current: %fA\n", S_idx * speed_inc, (I_idx-1) * current_inc);
 
     res.I_op = (I_idx-1) * current_inc; % stupid ahh 1 indexing
     res.T_emg_op = trilinear_query(t1.Electromagnetic_Torque, t2.Electromagnetic_Torque, S_idx, I_idx, fracT);
@@ -123,3 +131,81 @@ function res = motor_model_func(V_dc, T_dmd, Temp, S_op)
     res.I_phase = trilinear_query(t1.Stator_Current_Phase_RMS, t2.Stator_Current_Phase_RMS, S_idx, I_idx, fracT);
     res.Pf = trilinear_query(t1.Power_Factor, t2.Power_Factor, S_idx, I_idx, fracT);
 end
+%%
+V_vec = linspace(400, 600, 50);   % X axis
+T_vec = linspace(0, 22, 50);      % Y axis
+[VV, TT] = meshgrid(V_vec, T_vec);
+I_op      = zeros(size(VV));
+T_emg_op  = zeros(size(VV));
+V_op      = zeros(size(VV));
+T_Shaft   = zeros(size(VV));
+I_phase   = zeros(size(VV));
+Pf        = zeros(size(VV));
+for i = 1:numel(VV)
+    res = motor_model_func(VV(i), TT(i), 80, 15000);
+
+    I_op(i)     = res.I_op;
+    T_emg_op(i) = res.T_emg_op;
+    V_op(i)     = res.V_op;
+    T_Shaft(i)  = res.T_Shaft;
+    I_phase(i)  = res.I_phase;
+    Pf(i)       = res.Pf;
+end
+%%
+figure
+t = tiledlayout(3,2,'TileSpacing','compact','Padding','compact');
+title(t, sprintf("Motor at %.2fC and %dRPM", 80, 15000));
+
+% --- I_op ---
+nexttile
+surf(VV, TT, I_op, 'EdgeColor','none')
+shading interp
+title('I_{op} (A)')
+xlabel('V_{dc} (V)')
+ylabel('T_{dmd} (Nm)')
+colorbar
+
+% --- T_emg ---
+nexttile
+surf(VV, TT, T_emg_op, 'EdgeColor','none')
+shading interp
+title('Electromagnetic Torque (Nm)')
+xlabel('V_{dc} (V)')
+ylabel('T_{dmd} (Nm)')
+colorbar
+
+% --- V_op ---
+nexttile
+surf(VV, TT, V_op, 'EdgeColor','none')
+shading interp
+title('Phase Peak Voltage')
+xlabel('V_{dc} (V)')
+ylabel('T_{dmd} (Nm)')
+colorbar
+
+% --- T_shaft ---
+nexttile
+surf(VV, TT, T_Shaft, 'EdgeColor','none')
+shading interp
+title('Shaft Torque (Nm)')
+xlabel('V_{dc} (V)')
+ylabel('T_{dmd} (Nm)')
+colorbar
+
+% --- I_phase ---
+nexttile
+surf(VV, TT, I_phase, 'EdgeColor','none')
+shading interp
+title('Phase RMS Current (A)')
+xlabel('V_{dc} (V)')
+ylabel('T_{dmd} (Nm)')
+colorbar
+
+% --- Power Factor ---
+nexttile
+surf(VV, TT, Pf, 'EdgeColor','none')
+shading interp
+title('Power Factor')
+xlabel('V_{dc} (V)')
+ylabel('T_{dmd} (Nm)')
+colorbar
