@@ -1,0 +1,169 @@
+function res = motor_op_point(V_dc, T_dmd, Temp)
+%
+% Inputs:
+%   V_dc  - DC bus / peak-phase voltage limit (V)
+%   T_dmd - requested electromagnetic torque (Nm)
+%   Temp  - temperature selector (use 80-120 ideally; nearest file chosen otherwise)
+%
+% Output (struct res):
+%   res.I_op_idx   - column index in table
+%   res.I_op       - approximated phase current (A) corresponding to column
+%   res.T_emg_op   - Electromagnetic torque value found (Nm)
+%   res.V_op       - phase-peak voltage found (same units as Voltage_Phase_Peak)
+%   res.S_op       - speed (rpm) corresponding to V_op
+%   res.T_Shaft    - shaft torque (usable torque) (Nm)
+%   res.I_phase    - stator phase current (ARMS)
+%   res.Mech_loss  - mechanical loss (W)
+%   res.Pf         - power factor
+%   res.currents   - vector of current axis (A)
+%   res.speeds     - vector of speed axis (rpm)
+%   res.notes      - cell array of explanatory strings
+
+%% 0) Tolerances
+epsV = 1e-4;   % V tolerance (rename of deltaV)
+epsT = 1e-4;   % torque tolerance (rename of deltaS)
+
+%% 1) Load the appropriate data file (choose nearest available Temp)
+availableTemps = [80 100 120];
+[~, idxNearest] = min(abs(availableTemps - Temp));
+chosenTemp = availableTemps(idxNearest);
+
+switch chosenTemp
+    case 80
+        dat = load('A2370DD_T80C.mat');
+    case 100
+        dat = load('A2370DD_T100C.mat');
+    case 120
+        dat = load('A2370DD_T120C.mat');
+    otherwise
+        error('Unexpected temperature selection.');
+end
+
+notes = {};
+notes{end+1} = sprintf('Using data file for %d C (closest to requested %g C).', chosenTemp, Temp);
+
+Tmat = dat.Electromagnetic_Torque;
+Vmat = dat.Voltage_Phase_Peak;
+
+% Matrix sizes
+[NR, NC] = size(Tmat);
+% Derive speed and current axes from matrix dimensions:
+% assume speeds from 0 to 20000 rpm across NR rows (uniform)
+% assume currents from 0 to 105 A across NC columns (uniform)
+speeds = linspace(0,20000,NR).';      % column vector, rpm
+currents = linspace(0,105,NC);       % row vector, A
+
+% Save axes
+res.currents = currents;
+res.speeds = speeds;
+
+%% 2) Sweep matrices according to flowchart
+% Outer loop: high RPM -> low (NR down to 1)
+% Inner loop: low current -> high (1 to NC)
+% Objective: find first (row,col) where:
+%   Vmat(row,col) <= V_dc + epsV
+%   Tmat(row,col) >= T_dmd - epsT   (note: use >= T_dmd - epsT to allow small tolerance)
+% If V OK but T < demanded, track the best max T encountered under V condition (fallback).
+
+found_exact = false;
+selected_row = NaN;
+selected_col = NaN;
+
+% Track fallback candidate where V satisfied but T not; pick the one with max T
+fallback_exists = false;
+fallback_T = -Inf;
+fallback_row = NaN;
+fallback_col = NaN;
+
+for row = NR:-1:1            % highest speed first
+    for col = 1:NC           % lowest current first
+        Tv = Tmat(row,col);
+        Vv = Vmat(row,col);
+        % Check voltage satisfied (with tolerance)
+        v_ok = (Vv <= V_dc + epsV);
+        % Check torque satisfied (with tolerance downward)
+        t_ok = (Tv >= T_dmd - epsT);
+        if v_ok && t_ok
+            % Exact acceptable operating point found (prefer high RPM, then low current)
+            selected_row = row;
+            selected_col = col;
+            found_exact = true;
+            notes{end+1} = sprintf('Exact operating point found at row %d (%.1f rpm), col %d (I=%.3g A): T=%.3g, V=%.3g.', ...
+                                   row, speeds(row), col, currents(col), Tv, Vv);
+            break; % break inner loop (we found the best point for this high RPM)
+        else
+            % If voltage satisfied but torque not, consider as fallback candidate
+            if v_ok && ~t_ok
+                if Tv > fallback_T
+                    fallback_T = Tv;
+                    fallback_row = row;
+                    fallback_col = col;
+                    fallback_exists = true;
+                end
+            end
+            % Otherwise (V not ok) we do nothing special, continue scanning
+        end
+    end
+    if found_exact
+        break; % exit outer loop
+    end
+end
+
+%% 3) Decide final operating point based on sweep results
+if found_exact
+    final_row = selected_row;
+    final_col = selected_col;
+    final_T = Tmat(final_row, final_col);
+    final_V = Vmat(final_row, final_col);
+    final_S = speeds(final_row);
+    final_I = currents(final_col);
+elseif fallback_exists
+    % Use fallback (best torque among those that satisfied voltage)
+    final_row = fallback_row;
+    final_col = fallback_col;
+    final_T = Tmat(final_row, final_col);
+    final_V = Vmat(final_row, final_col);
+    final_S = speeds(final_row);
+    final_I = currents(final_col);
+    notes{end+1} = sprintf(['Torque was either unachievable or limited by supplied voltage. Using next best operating point where voltage requirement was satisfied. \n ', ...
+                           'Chosen fallback at row %d (%.1f rpm), col %d (I=%.3g A) with T=%.3g and V=%.3g.'], ...
+                           final_row, final_S, final_col, final_I, final_T, final_V);
+else
+    % No valid point and no fallback -> voltage preventing operation
+    res.I_op_idx = NaN;
+    res.I_op = NaN;
+    res.T_emg_op = NaN;
+    res.V_op = NaN;
+    res.S_op = NaN;
+    % The additional outputs are required; fill with NaN
+    res.T_Shaft = NaN;
+    res.I_phase = NaN;
+    res.Mech_loss = NaN;
+    res.Pf = NaN;
+    notes{end+1} = 'No operating point found. Voltage constraint prevents operation';
+    res.notes = notes;
+    return;
+end
+
+%% 4) Populate outputs from chosen final indices
+res.I_op_idx = final_col;
+res.I_op = final_I;
+res.T_emg_op = final_T;
+res.V_op = final_V;
+res.S_op = final_S;
+
+% Extract additional outputs from guaranteed maps
+% Use final_row, final_col indexing
+res.T_Shaft = dat.Shaft_Torque(final_row, final_col);
+res.I_phase = dat.Stator_Current_Phase_RMS(final_row, final_col);
+res.Mech_loss = dat.Mechanical_Loss(final_row, final_col);
+res.Pf = dat.Power_Factor(final_row, final_col);
+
+notes{end+1} = sprintf('Final outputs extracted from maps at row %d, col %d.', final_row, final_col);
+
+%% 5) Finalize notes & return
+res.currents = currents;
+res.speeds = speeds;
+res.notes = notes;
+
+end
