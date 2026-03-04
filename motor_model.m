@@ -142,7 +142,7 @@ T_Shaft   = zeros(size(VV));
 I_phase   = zeros(size(VV));
 Pf        = zeros(size(VV));
 for i = 1:numel(VV)
-    res = motor_model_func(VV(i), TT(i), 80, 15000);
+    res = motor_model_func(VV(i), TT(i), 120, 15000);
 
     I_op(i)     = res.I_op;
     T_emg_op(i) = res.T_emg_op;
