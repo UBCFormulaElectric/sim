@@ -39,7 +39,7 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         elif event.type == pygame.KEYDOWN:
-            handle_key(event.key)
+            handle_key(event.key, vehicle_state)
 
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")

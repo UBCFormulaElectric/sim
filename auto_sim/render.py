@@ -1,11 +1,9 @@
-# global state
-from dataclasses import dataclass
-from enum import Enum
-
 import pygame
 from scipy.spatial.transform import Rotation as R
 from cone import Cone
 from sim import VehicleState
+from math import ceil, degrees
+import numpy as np
 
 PIXELS_PER_M = 80.0
 w: int
@@ -17,8 +15,16 @@ def init():
 	global car
 	car = pygame.image.load('fsae.png').convert_alpha()
 
-def handle_key(key: int):
-	pass
+def handle_key(key: int, state: VehicleState):
+	match key:
+		case pygame.K_d:
+			state.theta += 0.1
+		case pygame.K_a:
+			state.theta -= 0.1
+		case pygame.K_w:
+			state.x += 0.1
+		case pygame.K_s:
+			state.x -= 0.1
 
 def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int]:
 	global w, h
@@ -30,19 +36,30 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 	# Simple transformation - replace with actual coordinate transformation logic
 	return (screen_x, screen_y)
 
-def drawGrid(screen: pygame.Surface, color=(20, 20, 20)):
+def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing=50):
 	global h, w
-	blockSize = 20 #Set the size of the grid block
-	for x in range(0, w, blockSize):
-		for y in range(0, h, blockSize):
-			rect = pygame.Rect(x, y, blockSize, blockSize)
-			pygame.draw.rect(screen, color, rect, 1)
+	l: int = ceil(np.hypot(w/2, h/2))
+	l = l // spacing * spacing
+
+	grid_surf = pygame.Surface((2*l,2*l), pygame.SRCALPHA)
+
+	offset_x = (state.x * PIXELS_PER_M) % spacing
+	offset_y = (state.y * PIXELS_PER_M) % spacing
+	for x in range(0, 2*l, spacing):
+		pygame.draw.line(grid_surf, color, (x - offset_x, 0), (x - offset_x, 2*l))
+	for y in range(0, 2*l, spacing):
+		pygame.draw.line(grid_surf, color, (0, y - offset_y), (2*l, y - offset_y))
+	rotated_surf = pygame.transform.rotate(grid_surf, -degrees(state.theta))
+	rect = rotated_surf.get_rect(center=(w/2, h/2))
+	screen.blit(rotated_surf, rect.topleft)
 
 def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface):
 	global w, h
 	w, h = screen.get_width(), screen.get_height()
 
-	drawGrid(screen)
+	# grid for context
+	drawGrid(screen, vehicle_state)
+	pygame.draw.circle(screen, "white", transform(0, 0, vehicle_state), 5)
 
 	# draw the car at 1/10th scale
 	car_rotated = pygame.transform.rotate(car, -90)
