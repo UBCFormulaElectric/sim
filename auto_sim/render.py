@@ -1,10 +1,10 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
-from cone import Cone
 from constants import VEHICLE_WIDTH_M
 from sim import VehicleState
 from math import ceil, degrees
 import numpy as np
+from Controller import Cone
 
 PIXELS_PER_M = 80.0
 w: int
@@ -72,6 +72,6 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 
 	for cone in cones:
 		pygame.draw.circle(
-			screen, cone.color.value,
+			screen, cone.c.value,
 			transform(cone.x, cone.y, vehicle_state), 10
 		)

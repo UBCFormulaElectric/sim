@@ -1,6 +1,5 @@
 from dataclasses import dataclass
-from cone import Cone
-from vehicle_state import VehicleState
+from Controller import Cone, VehicleState
 import pygame
 
 @dataclass

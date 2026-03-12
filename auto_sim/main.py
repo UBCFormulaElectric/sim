@@ -1,8 +1,7 @@
 import pygame
-from cone import Cone, ConeColor
-from controller import controller
-from render import handle_key, init, render_world
-from sim import VehicleState, sim_step
+from Controller import compute, Cone, ConeColor, VehicleState
+from render import init, render_world
+from sim import sim_step
 import ctypes
 import platform
 
@@ -29,7 +28,7 @@ running = True
 time: float = 0.0
 init()
 
-vehicle_state: VehicleState = VehicleState(0, 0, 0, 0, 0, 0)
+vehicle_state: VehicleState = VehicleState()
 
 while running:
     # handle events
@@ -40,7 +39,7 @@ while running:
 
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
-    controls = controller(vehicle_state, CONE_POSITIONS)
+    controls = compute(vehicle_state, CONE_POSITIONS)
     sim_step(vehicle_state, controls, clock.get_time())
     render_world(vehicle_state, CONE_POSITIONS, screen)
 
