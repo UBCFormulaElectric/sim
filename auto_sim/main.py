@@ -1,6 +1,7 @@
 # Example file showing a basic pygame "game loop"
 import pygame
-from render import handle_key, init, render_world, sim_step
+from render import handle_key, init, render_world
+from sim import VehicleState, sim_step
 import ctypes
 import platform
 
@@ -23,6 +24,8 @@ running = True
 time: float = 0.0
 init()
 
+vehicle_state: VehicleState = VehicleState(0, 0, 0, 0, 0, 0)
+
 while running:
     # handle events
     # pygame.QUIT event means the user clicked X to close your window
@@ -34,8 +37,8 @@ while running:
 
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
-    sim_step(clock.get_time())
-    render_world(screen)
+    sim_step(vehicle_state, clock.get_time())
+    render_world(vehicle_state, screen)
 
     # flip() the display to put your work on screen
     pygame.display.flip()
