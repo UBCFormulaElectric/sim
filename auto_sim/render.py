@@ -4,7 +4,7 @@ from constants import VEHICLE_WIDTH_M
 from sim import VehicleState
 from math import ceil, degrees
 import numpy as np
-from Controller import Cone
+from Controller import Cone, ConeColor
 
 PIXELS_PER_M = 80.0
 w: int
@@ -54,6 +54,15 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), sp
 	rect = rotated_surf.get_rect(center=(w/2, h/2))
 	screen.blit(rotated_surf, rect.topleft)
 
+def int_to_color(value: ConeColor) -> str:
+	match value:
+		case ConeColor.BLUE:
+			return "blue"
+		case ConeColor.YELLOW:
+			return "yellow"
+		case _:
+			return "white"
+
 def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface):
 	global w, h
 	w, h = screen.get_width(), screen.get_height()
@@ -72,6 +81,6 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 
 	for cone in cones:
 		pygame.draw.circle(
-			screen, cone.c.value,
+			screen, int_to_color(cone.c),
 			transform(cone.x, cone.y, vehicle_state), 10
 		)
