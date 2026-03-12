@@ -1,5 +1,5 @@
-# Example file showing a basic pygame "game loop"
 import pygame
+from cone import Cone, ConeColor
 from controller import controller
 from render import handle_key, init, render_world
 from sim import VehicleState, sim_step
@@ -15,6 +15,11 @@ def set_dpi_awareness():
             # Windows 7/Vista
             ctypes.windll.user32.SetProcessDPIAware()
 set_dpi_awareness()
+
+CONE_POSITIONS: list[Cone] = [
+	Cone(10, 10, ConeColor.BLUE),
+	Cone(-10, 10, ConeColor.YELLOW),
+] # TODO figure out where the cones need to be
 
 # pygame setup
 pygame.init()
@@ -38,9 +43,9 @@ while running:
 
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
-    controls = controller(vehicle_state)
+    controls = controller(vehicle_state, CONE_POSITIONS)
     sim_step(vehicle_state, controls, clock.get_time())
-    render_world(vehicle_state, screen)
+    render_world(vehicle_state, CONE_POSITIONS, screen)
 
     # flip() the display to put your work on screen
     pygame.display.flip()

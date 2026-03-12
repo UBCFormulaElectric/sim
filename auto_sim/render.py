@@ -4,22 +4,8 @@ from enum import Enum
 
 import pygame
 from scipy.spatial.transform import Rotation as R
+from cone import Cone
 from sim import VehicleState
-
-class ConeColor(Enum):
-	BLUE = "blue"
-	YELLOW = "yellow"
-
-@dataclass
-class Cone:
-	x: int
-	y: int
-	color: ConeColor
-
-CONE_POSITIONS: list[Cone] = [
-	Cone(10, 10, ConeColor.BLUE),
-	Cone(-10, 10, ConeColor.YELLOW),
-] # TODO figure out where the cones need to be
 
 PIXELS_PER_M = 80.0
 w: int
@@ -52,7 +38,7 @@ def drawGrid(screen: pygame.Surface, color=(20, 20, 20)):
 			rect = pygame.Rect(x, y, blockSize, blockSize)
 			pygame.draw.rect(screen, color, rect, 1)
 
-def render_world(vehicle_state: VehicleState, screen: pygame.Surface):
+def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface):
 	global w, h
 	w, h = screen.get_width(), screen.get_height()
 
@@ -67,7 +53,7 @@ def render_world(vehicle_state: VehicleState, screen: pygame.Surface):
 	car_rect = car_scaled.get_rect(center=transform(vehicle_state.x, vehicle_state.y, vehicle_state))
 	screen.blit(car_scaled, car_rect)
 
-	for cone in CONE_POSITIONS:
+	for cone in cones:
 		pygame.draw.circle(
 			screen, cone.color.value,
 			transform(cone.x, cone.y, vehicle_state), 10
