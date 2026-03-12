@@ -6,7 +6,7 @@ from math import ceil, degrees
 import numpy as np
 from Controller import Cone, ConeColor
 
-PIXELS_PER_M = 80.0
+PIXELS_PER_M = 	30.0
 w: int
 h: int
 
@@ -82,5 +82,5 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	for cone in cones:
 		pygame.draw.circle(
 			screen, int_to_color(cone.c),
-			transform(cone.x, cone.y, vehicle_state), 10
+			transform(cone.x, cone.y, vehicle_state), 0.2 * PIXELS_PER_M
 		)

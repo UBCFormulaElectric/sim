@@ -1,3 +1,5 @@
+import math
+
 import pygame
 from Controller import compute, sim_step, Cone, ConeColor, VehicleState
 from render import init, render_world
@@ -13,10 +15,13 @@ if platform.system() == "Windows":
         # Windows 7/Vista
         ctypes.windll.user32.SetProcessDPIAware()
 
-CONE_POSITIONS: list[Cone] = [
-	Cone(10, 10, ConeColor.BLUE),
-	Cone(-10, 10, ConeColor.YELLOW),
-] # TODO figure out where the cones need to be
+CONE_POSITIONS: list[Cone] = []
+with open("labels/0000001.txt", "r") as f:
+    lines = f.readlines()
+    for line in lines:
+        x, y, _, _, _, _, _, color = line.strip().split()
+        cone_color = ConeColor.YELLOW if color == "Cone_Yellow" else ConeColor.BLUE
+        CONE_POSITIONS.append(Cone(float(x), float(y), cone_color))
 
 # pygame setup
 pygame.init()
@@ -28,6 +33,7 @@ time: float = 0.0
 init()
 
 vehicle_state: VehicleState = VehicleState()
+vehicle_state.theta = math.pi/2
 
 while running:
     # handle events
