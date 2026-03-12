@@ -48,16 +48,14 @@ def create_surface(l: int, spacing: int, color: str) -> pygame.Surface:
 		pygame.draw.line(grid_surf, color, (0, y), (2*l, y))
 	return grid_surf
 
-old_spacing, old_color, old_l = 0, (20, 20, 20), 0
+old_state = None, None, None
 old_grid_surf = None
 def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing=50):
-	global h, w, old_spacing, old_color, old_l, old_grid_surf
+	global h, w, old_state, old_grid_surf
 	l: int= ceil(np.hypot(w/2, h/2) / spacing) * spacing
-	if spacing != old_spacing or color != old_color or l != old_l or old_grid_surf is None:
+	if (spacing, color, l) != old_state or old_grid_surf is None:
 		print("RERENDERING GRID")
-		old_spacing = spacing
-		old_color = color
-		old_l = l
+		old_state = (spacing, color, l)
 		old_grid_surf = create_surface(2000, spacing, color)
 	grid_surf = old_grid_surf
 
