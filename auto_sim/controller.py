@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from sim import VehicleState
+from vehicle_state import VehicleState
 
 @dataclass
 class ControllerOutput:

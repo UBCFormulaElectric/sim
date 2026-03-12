@@ -44,9 +44,19 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 	# Simple transformation - replace with actual coordinate transformation logic
 	return (screen_x, screen_y)
 
+def drawGrid(screen: pygame.Surface, color=(20, 20, 20)):
+	global h, w
+	blockSize = 20 #Set the size of the grid block
+	for x in range(0, w, blockSize):
+		for y in range(0, h, blockSize):
+			rect = pygame.Rect(x, y, blockSize, blockSize)
+			pygame.draw.rect(screen, color, rect, 1)
+
 def render_world(vehicle_state: VehicleState, screen: pygame.Surface):
 	global w, h
 	w, h = screen.get_width(), screen.get_height()
+
+	drawGrid(screen)
 
 	# draw the car at 1/10th scale
 	car_rotated = pygame.transform.rotate(car, -90)

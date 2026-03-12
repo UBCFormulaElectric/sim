@@ -1,16 +1,7 @@
-from dataclasses import dataclass
 import numpy as np
 
 from controller import ControllerOutput
-
-@dataclass
-class VehicleState:
-	x: float
-	y: float
-	v_x: float
-	v_y: float
-	theta: float
-	omega: float
+from vehicle_state import VehicleState
 
 def sim_step(state: VehicleState, control: ControllerOutput, dt: int):
 	state.v_x += control.a_x * dt
