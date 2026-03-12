@@ -1,7 +1,6 @@
 import pygame
-from Controller import compute, Cone, ConeColor, VehicleState
+from Controller import compute, sim_step, Cone, ConeColor, VehicleState
 from render import init, render_world
-from sim import sim_step
 import ctypes
 import platform
 

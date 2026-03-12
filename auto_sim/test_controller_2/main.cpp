@@ -1,6 +1,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <vector>
+#include <numbers>
+#include <cassert>
 
 struct ControlOutput {
 	double ax;
@@ -28,6 +30,14 @@ struct Cone {
     Cone(double _x, double _y, ConeColor _c) : x(_x), y(_y), c(_c) {}
 };
 
+void sim_step(VehicleState& state, const ControlOutput& control, const int dt) {
+    state.v_x += control.ax * dt;
+	state.v_y += control.ay * dt;
+	state.x += state.v_x * dt;
+	state.y += state.v_y * dt;
+	state.theta += std::fmod(state.omega * dt, 2 * std::numbers::pi);
+}
+
 ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones) {
     // Implementation for compute function
     return {0,0,0};
@@ -35,7 +45,7 @@ ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones) {
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(Controller, m) {
+PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     py::class_<ControlOutput>(m, "ControlOutput")
         .def(py::init<double, double, double>())
         .def_readwrite("ax", &ControlOutput::ax)
@@ -64,5 +74,9 @@ PYBIND11_MODULE(Controller, m) {
 
     m.def("compute", &compute, R"pbdoc(
         Compute control output
+    )pbdoc");
+
+    m.def("sim_step", &sim_step, R"pbdoc(
+        Simulate one step of the vehicle dynamics
     )pbdoc");
 }
