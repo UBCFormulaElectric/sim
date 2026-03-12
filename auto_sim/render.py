@@ -1,7 +1,7 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from sim import VehicleState
+from Controller import VehicleState
 from math import ceil, degrees
 import numpy as np
 from Controller import Cone, ConeColor
