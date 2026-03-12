@@ -1,6 +1,7 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from cone import Cone
+from constants import VEHICLE_WIDTH_M
 from sim import VehicleState
 from math import ceil, degrees
 import numpy as np
@@ -61,9 +62,8 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	drawGrid(screen, vehicle_state)
 	pygame.draw.circle(screen, "white", transform(0, 0, vehicle_state), 5)
 
-	# draw the car at 1/10th scale
 	car_rotated = pygame.transform.rotate(car, -90)
-	scale_factor = 1.2 / car_rotated.get_width() * PIXELS_PER_M
+	scale_factor = VEHICLE_WIDTH_M / car_rotated.get_width() * PIXELS_PER_M
 	car_scaled = pygame.transform.scale(car_rotated, (
 		car_rotated.get_width() * scale_factor, car_rotated.get_height() * scale_factor
 	))

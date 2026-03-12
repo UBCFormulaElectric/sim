@@ -6,15 +6,14 @@ from sim import VehicleState, sim_step
 import ctypes
 import platform
 
-def set_dpi_awareness():
-    if platform.system() == "Windows":
-        try:
-            # Set DPI Awareness (Windows 10/8)
-            ctypes.windll.shcore.SetProcessDpiAwareness(2)
-        except AttributeError:
-            # Windows 7/Vista
-            ctypes.windll.user32.SetProcessDPIAware()
-set_dpi_awareness()
+# dpi awareness for windows - prevents blurry rendering on high dpi displays
+if platform.system() == "Windows":
+    try:
+        # Set DPI Awareness (Windows 10/8)
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)
+    except AttributeError:
+        # Windows 7/Vista
+        ctypes.windll.user32.SetProcessDPIAware()
 
 CONE_POSITIONS: list[Cone] = [
 	Cone(10, 10, ConeColor.BLUE),
@@ -38,8 +37,6 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == pygame.KEYDOWN:
-            handle_key(event.key, vehicle_state)
 
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
