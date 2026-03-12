@@ -6,7 +6,7 @@ from math import ceil, degrees
 import numpy as np
 from Controller import Cone, ConeColor
 
-PIXELS_PER_M = 	30.0
+PIXELS_PER_M = 	50.0
 w: int
 h: int
 
@@ -40,27 +40,28 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 	# Simple transformation - replace with actual coordinate transformation logic
 	return (screen_x, screen_y)
 
-def create_surface(l: int, spacing: int, color: str) -> pygame.Surface:
+def create_surface(l: int, spacing_px: int, color: str) -> pygame.Surface:
 	grid_surf = pygame.Surface((2*l,2*l), pygame.SRCALPHA)
-	for x in range(0, 2*l, spacing):
+	for x in range(0, 2*l, spacing_px):
 		pygame.draw.line(grid_surf, color, (x, 0), (x, 2*l))
-	for y in range(0, 2*l, spacing):
+	for y in range(0, 2*l, spacing_px):
 		pygame.draw.line(grid_surf, color, (0, y), (2*l, y))
 	return grid_surf
 
 old_state = None, None, None
 old_grid_surf = None
-def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing=50):
+def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing_m=1):
 	global h, w, old_state, old_grid_surf
-	l: int= ceil(np.hypot(w/2, h/2) / spacing) * spacing
-	if (spacing, color, l) != old_state or old_grid_surf is None:
+	spacing_px =  int(spacing_m * PIXELS_PER_M)
+	l: int= ceil(np.hypot(w/2, h/2) / spacing_m) * spacing_m
+	if (spacing_m, color, l) != old_state or old_grid_surf is None:
 		print("RERENDERING GRID")
-		old_state = (spacing, color, l)
-		old_grid_surf = create_surface(2000, spacing, color)
+		old_state = (spacing_m, color, l)
+		old_grid_surf = create_surface(2000, spacing_px, color)
 	grid_surf = old_grid_surf
 
-	offset_x = (state.x * PIXELS_PER_M) % spacing
-	offset_y = (state.y * PIXELS_PER_M) % spacing	
+	offset_x = (state.x * PIXELS_PER_M) % spacing_px
+	offset_y = (state.y * PIXELS_PER_M) % spacing_px	
 	rotated_surf = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
 	rect = rotated_surf.get_rect(center=(w/2 + offset_y, (h * 0.67) + offset_x))
 	screen.blit(rotated_surf, rect.topleft)
@@ -84,6 +85,12 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	p = transform(0, 0, vehicle_state)
 	pygame.draw.circle(screen, "white",p , 5)
 
+	for cone in cones:
+		pygame.draw.circle(
+			screen, int_to_color(cone.c),
+			transform(cone.x, cone.y, vehicle_state), 0.2 * PIXELS_PER_M
+		)
+	
 	car_rotated = pygame.transform.rotate(car,-90)
 	scale_factor = VEHICLE_WIDTH_M / car_rotated.get_width() * PIXELS_PER_M
 	car_scaled = pygame.transform.scale(car_rotated, (
@@ -91,9 +98,3 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	))
 	car_rect = car_scaled.get_rect(center=transform(vehicle_state.x, vehicle_state.y, vehicle_state))
 	screen.blit(car_scaled, car_rect)
-
-	for cone in cones:
-		pygame.draw.circle(
-			screen, int_to_color(cone.c),
-			transform(cone.x, cone.y, vehicle_state), 0.2 * PIXELS_PER_M
-		)
