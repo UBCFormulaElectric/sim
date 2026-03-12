@@ -28,8 +28,11 @@ def handle_key(key: int, state: VehicleState):
 			state.x -= 0.1
 
 def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int]:
+	"""
+	Transforms from global coordinates to screen space coordinates
+	"""
 	global w, h
-	r = R.from_euler('z', vehicle_state.theta + np.pi/2, degrees=False)
+	r = R.from_euler('z', -vehicle_state.theta + np.pi/2, degrees=False)
 	rel_x, rel_y = x - vehicle_state.x, y - vehicle_state.y
 	rotated_x, rotated_y,_ = r.apply([rel_x, rel_y, 0])
 	screen_x = int(w / 2 + rotated_x * PIXELS_PER_M)
@@ -49,7 +52,7 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), sp
 		pygame.draw.line(grid_surf, color, (x + offset_x, 0), (x + offset_x, 2*l))
 	for y in range(0, 2*l, spacing):
 		pygame.draw.line(grid_surf, color, (0, y + offset_y), (2*l, y + offset_y))
-	rotated_surf = pygame.transform.rotate(grid_surf, degrees(state.theta - np.pi/2))
+	rotated_surf = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
 	rect = rotated_surf.get_rect(center=(w/2, (h * 0.67)))
 	screen.blit(rotated_surf, rect.topleft)
 
@@ -72,7 +75,7 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	p = transform(0, 0, vehicle_state)
 	pygame.draw.circle(screen, "white",p , 5)
 
-	car_rotated = pygame.transform.rotate(car,- 90)
+	car_rotated = pygame.transform.rotate(car,-90)
 	scale_factor = VEHICLE_WIDTH_M / car_rotated.get_width() * PIXELS_PER_M
 	car_scaled = pygame.transform.scale(car_rotated, (
 		car_rotated.get_width() * scale_factor, car_rotated.get_height() * scale_factor
