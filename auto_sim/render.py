@@ -29,7 +29,7 @@ def handle_key(key: int, state: VehicleState):
 
 def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int]:
 	global w, h
-	r = R.from_euler('z', -vehicle_state.theta, degrees=False)
+	r = R.from_euler('z', vehicle_state.theta + np.pi/2, degrees=False)
 	rel_x, rel_y = x - vehicle_state.x, y - vehicle_state.y
 	rotated_x, rotated_y,_ = r.apply([rel_x, rel_y, 0])
 	screen_x = int(w / 2 + rotated_x * PIXELS_PER_M)
@@ -39,19 +39,18 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 
 def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing=50):
 	global h, w
-	l: int = ceil(np.hypot(w/2, h/2))
-	l = l // spacing * spacing
+	l: int= ceil(np.hypot(w/2, h/2) / spacing) * spacing
 
 	grid_surf = pygame.Surface((2*l,2*l), pygame.SRCALPHA)
 
 	offset_x = (state.x * PIXELS_PER_M) % spacing
 	offset_y = (state.y * PIXELS_PER_M) % spacing
 	for x in range(0, 2*l, spacing):
-		pygame.draw.line(grid_surf, color, (x - offset_x, 0), (x - offset_x, 2*l))
+		pygame.draw.line(grid_surf, color, (x + offset_x, 0), (x + offset_x, 2*l))
 	for y in range(0, 2*l, spacing):
-		pygame.draw.line(grid_surf, color, (0, y - offset_y), (2*l, y - offset_y))
-	rotated_surf = pygame.transform.rotate(grid_surf, -degrees(state.theta))
-	rect = rotated_surf.get_rect(center=(w/2, h/2))
+		pygame.draw.line(grid_surf, color, (0, y + offset_y), (2*l, y + offset_y))
+	rotated_surf = pygame.transform.rotate(grid_surf, degrees(state.theta - np.pi/2))
+	rect = rotated_surf.get_rect(center=(w/2, (h * 0.67)))
 	screen.blit(rotated_surf, rect.topleft)
 
 def int_to_color(value: ConeColor) -> str:
@@ -69,9 +68,11 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 
 	# grid for context
 	drawGrid(screen, vehicle_state)
-	pygame.draw.circle(screen, "white", transform(0, 0, vehicle_state), 5)
 
-	car_rotated = pygame.transform.rotate(car, -90)
+	p = transform(0, 0, vehicle_state)
+	pygame.draw.circle(screen, "white",p , 5)
+
+	car_rotated = pygame.transform.rotate(car,- 90)
 	scale_factor = VEHICLE_WIDTH_M / car_rotated.get_width() * PIXELS_PER_M
 	car_scaled = pygame.transform.scale(car_rotated, (
 		car_rotated.get_width() * scale_factor, car_rotated.get_height() * scale_factor

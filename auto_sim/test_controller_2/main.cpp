@@ -36,11 +36,15 @@ struct Cone {
 };
 
 void sim_step(VehicleState& state, const ControlOutput& control, const int dt) {
-    state.v_x += control.ax * dt;
-	state.v_y += control.ay * dt;
-	state.x += state.v_x * dt;
-	state.y += state.v_y * dt;
-	state.theta += std::fmod(state.omega * dt, 2 * std::numbers::pi);
+    const double dt_s = dt / 1000.0;
+    state.v_x += (control.ax + state.omega * state.v_y) * dt_s;
+	state.v_y += (control.ay - state.omega * state.v_x) * dt_s;
+
+	state.theta += std::fmod(state.omega * dt_s, 2 * std::numbers::pi);
+    const double v_x_world = state.v_x * std::cos(state.theta) - state.v_y * std::sin(state.theta);
+    const double v_y_world = state.v_x * std::sin(state.theta) + state.v_y * std::cos(state.theta);
+	state.x += v_x_world * dt_s;
+	state.y += v_y_world * dt_s;
 }
 
 ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones) {
