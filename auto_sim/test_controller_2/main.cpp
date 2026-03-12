@@ -5,17 +5,22 @@
 #include <cassert>
 
 struct ControlOutput {
+    // in local frame
 	double ax;
 	double ay;
+    // no frame
     double omega_dot;
     ControlOutput(double _ax, double _ay, double _omega_dot) : ax(_ax), ay(_ay), omega_dot(_omega_dot) {}
 };
 struct VehicleState {
+    // in global frame
     double x;
     double y;
     double theta;
+    // in local frame
     double v_x;
     double v_y;
+    // no frame
     double omega;
     VehicleState() : x(0), y(0), theta(0), v_x(0), v_y(0), omega(0) {}
 };
