@@ -40,20 +40,31 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 	# Simple transformation - replace with actual coordinate transformation logic
 	return (screen_x, screen_y)
 
-def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing=50):
-	global h, w
-	l: int= ceil(np.hypot(w/2, h/2) / spacing) * spacing
-
+def create_surface(l: int, spacing: int, color: str) -> pygame.Surface:
 	grid_surf = pygame.Surface((2*l,2*l), pygame.SRCALPHA)
+	for x in range(0, 2*l, spacing):
+		pygame.draw.line(grid_surf, color, (x, 0), (x, 2*l))
+	for y in range(0, 2*l, spacing):
+		pygame.draw.line(grid_surf, color, (0, y), (2*l, y))
+	return grid_surf
+
+old_spacing, old_color, old_l = 0, (20, 20, 20), 0
+old_grid_surf = None
+def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing=50):
+	global h, w, old_spacing, old_color, old_l, old_grid_surf
+	l: int= ceil(np.hypot(w/2, h/2) / spacing) * spacing
+	if spacing != old_spacing or color != old_color or l != old_l or old_grid_surf is None:
+		print("RERENDERING GRID")
+		old_spacing = spacing
+		old_color = color
+		old_l = l
+		old_grid_surf = create_surface(2000, spacing, color)
+	grid_surf = old_grid_surf
 
 	offset_x = (state.x * PIXELS_PER_M) % spacing
-	offset_y = (state.y * PIXELS_PER_M) % spacing
-	for x in range(0, 2*l, spacing):
-		pygame.draw.line(grid_surf, color, (x + offset_x, 0), (x + offset_x, 2*l))
-	for y in range(0, 2*l, spacing):
-		pygame.draw.line(grid_surf, color, (0, y + offset_y), (2*l, y + offset_y))
+	offset_y = (state.y * PIXELS_PER_M) % spacing	
 	rotated_surf = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
-	rect = rotated_surf.get_rect(center=(w/2, (h * 0.67)))
+	rect = rotated_surf.get_rect(center=(w/2 + offset_y, (h * 0.67) + offset_x))
 	screen.blit(rotated_surf, rect.topleft)
 
 def int_to_color(value: ConeColor) -> str:
