@@ -1,5 +1,6 @@
 # Example file showing a basic pygame "game loop"
 import pygame
+from controller import controller
 from render import handle_key, init, render_world
 from sim import VehicleState, sim_step
 import ctypes
@@ -37,7 +38,8 @@ while running:
 
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
-    sim_step(vehicle_state, clock.get_time())
+    controls = controller(vehicle_state)
+    sim_step(vehicle_state, controls, clock.get_time())
     render_world(vehicle_state, screen)
 
     # flip() the display to put your work on screen
