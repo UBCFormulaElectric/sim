@@ -57,7 +57,7 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), sp
 	if (spacing_m, color, l) != old_state or old_grid_surf is None:
 		print("RERENDERING GRID")
 		old_state = (spacing_m, color, l)
-		old_grid_surf = create_surface(2000, spacing_px, color)
+		old_grid_surf = create_surface(2*l, spacing_px, color)
 	grid_surf = old_grid_surf
 
 	# Calculate grid offset to align with world coordinates
