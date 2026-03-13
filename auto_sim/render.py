@@ -11,10 +11,17 @@ w: int
 h: int
 
 car: pygame.Surface
+vignette: pygame.Surface
 
 def init():
-	global car
+	global car, vignette
 	car = pygame.image.load('fsae.png').convert_alpha()
+	vignette_image = pygame.image.load('vignette.png').convert_alpha()
+	vignette_image = pygame.transform.scale(vignette_image, (1800,1800))
+
+	vignette = pygame.surface.Surface((3000, 3000), pygame.SRCALPHA)
+	vignette.fill((0,0,0,0))
+	vignette.blit(vignette_image, vignette_image.get_rect(center=(1500, 1500)), special_flags=pygame.BLEND_RGBA_ADD)
 
 def handle_key(key: int, state: VehicleState):
 	match key:
@@ -40,35 +47,35 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 	# Simple transformation - replace with actual coordinate transformation logic
 	return (screen_x, screen_y)
 
-def create_surface(l: int, spacing_px: int, color: str) -> pygame.Surface:
+def create_grid_surface(l: int, spacing_px: int, color: str) -> pygame.Surface:
 	grid_surf = pygame.Surface((2*l,2*l), pygame.SRCALPHA)
 	for x in range(0, 2*l, spacing_px):
-		pygame.draw.line(grid_surf, color, (x, 0), (x, 2*l))
+		pygame.draw.line(grid_surf, color, (x, 0), (x, 2*l), 2)
 	for y in range(0, 2*l, spacing_px):
-		pygame.draw.line(grid_surf, color, (0, y), (2*l, y))
+		pygame.draw.line(grid_surf, color, (0, y), (2*l, y), 2)
 	return grid_surf
 
 old_state = None, None, None
 old_grid_surf = None
 def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), spacing_m=1):
-	global h, w, old_state, old_grid_surf
+	global h, w, old_state, old_grid_surf, vignette
 	spacing_px =  int(spacing_m * PIXELS_PER_M)
-	l: int= ceil(np.hypot(w/2, h/2) / spacing_m) * spacing_m
+	l: int= ceil(np.hypot(w/2, h/2) * 0.4 / spacing_m) * spacing_m
 	if (spacing_m, color, l) != old_state or old_grid_surf is None:
 		print("RERENDERING GRID")
 		old_state = (spacing_m, color, l)
-		old_grid_surf = create_surface(2*l, spacing_px, color)
+		old_grid_surf = create_grid_surface(2*l, spacing_px, color)
 	grid_surf = old_grid_surf
 
 	# Calculate grid offset to align with world coordinates
 	r = R.from_euler('z', -state.theta + np.pi/2, degrees=False)
 	x, y = r.apply([state.x % spacing_m, state.y % spacing_m, 0])[:2]
 	rotated_surf = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
-	rect = rotated_surf.get_rect(center=(
+	screen.blit(rotated_surf, rotated_surf.get_rect(center=(
 		w/2 - x * PIXELS_PER_M,
 		0.67 * h + y * PIXELS_PER_M
-	))
-	screen.blit(rotated_surf, rect.topleft)
+	)).topleft)
+	screen.blit(vignette, vignette.get_rect(center=(w/2, 0.67*h)), special_flags=pygame.BLEND_RGBA_MULT)
 
 def int_to_color(value: ConeColor) -> str:
 	match value:
