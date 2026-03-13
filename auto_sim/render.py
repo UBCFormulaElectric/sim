@@ -50,7 +50,7 @@ def create_surface(l: int, spacing_px: int, color: str) -> pygame.Surface:
 
 old_state = None, None, None
 old_grid_surf = None
-def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), spacing_m=1):
+def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), spacing_m=1):
 	global h, w, old_state, old_grid_surf
 	spacing_px =  int(spacing_m * PIXELS_PER_M)
 	l: int= ceil(np.hypot(w/2, h/2) / spacing_m) * spacing_m
@@ -60,10 +60,14 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(20, 20, 20), sp
 		old_grid_surf = create_surface(2000, spacing_px, color)
 	grid_surf = old_grid_surf
 
-	offset_x = (state.x * PIXELS_PER_M) % spacing_px
-	offset_y = (state.y * PIXELS_PER_M) % spacing_px	
+	# Calculate grid offset to align with world coordinates
+	r = R.from_euler('z', -state.theta + np.pi/2, degrees=False)
+	x, y = r.apply([state.x % spacing_m, state.y % spacing_m, 0])[:2]
 	rotated_surf = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
-	rect = rotated_surf.get_rect(center=(w/2 + offset_y, (h * 0.67) + offset_x))
+	rect = rotated_surf.get_rect(center=(
+		w/2 - x * PIXELS_PER_M,
+		0.67 * h + y * PIXELS_PER_M
+	))
 	screen.blit(rotated_surf, rect.topleft)
 
 def int_to_color(value: ConeColor) -> str:

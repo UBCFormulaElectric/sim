@@ -7,10 +7,9 @@
 struct ControlOutput {
     // in local frame
 	double ax;
-	double ay;
     // no frame
     double omega_dot;
-    ControlOutput(double _ax, double _ay, double _omega_dot) : ax(_ax), ay(_ay), omega_dot(_omega_dot) {}
+    ControlOutput(const double _ax, const double _omega_dot) : ax(_ax), omega_dot(_omega_dot) {}
 };
 struct VehicleState {
     // in global frame
@@ -38,7 +37,10 @@ struct Cone {
 void sim_step(VehicleState& state, const ControlOutput& control, const int dt) {
     const double dt_s = dt / 1000.0;
     state.v_x += (control.ax + state.omega * state.v_y) * dt_s;
-	state.v_y += (control.ay - state.omega * state.v_x) * dt_s;
+
+    const double beta = std::atan2(state.v_y, state.v_x);
+    const double tire_ay = -1 * beta; // simple tire model for lateral forces
+	state.v_y += (tire_ay - state.omega * state.v_x) * dt_s;
 
 	state.theta += std::fmod(state.omega * dt_s, 2 * std::numbers::pi);
     const double v_x_world = state.v_x * std::cos(state.theta) - state.v_y * std::sin(state.theta);
@@ -49,16 +51,15 @@ void sim_step(VehicleState& state, const ControlOutput& control, const int dt) {
 
 ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones) {
     // Implementation for compute function
-    return {0,0,0};
+    return {0,0};
 }
 
 namespace py = pybind11;
 
 PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     py::class_<ControlOutput>(m, "ControlOutput")
-        .def(py::init<double, double, double>())
+        .def(py::init<double, double>())
         .def_readwrite("ax", &ControlOutput::ax)
-        .def_readwrite("ay", &ControlOutput::ay)
         .def_readwrite("omega_dot", &ControlOutput::omega_dot);
     
     py::class_<VehicleState>(m, "VehicleState")

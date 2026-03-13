@@ -33,9 +33,9 @@ time: float = 0.0
 init()
 
 vehicle_state: VehicleState = VehicleState()
-# vehicle_state.theta = math.radians(90)
-vehicle_state.v_x = 1.0
-# vehicle_state.omega = 0.5
+vehicle_state.v_x = 2.0
+# vehicle_state.theta = math.radians(23.54)
+vehicle_state.omega = -0.2
 
 while running:
     # handle events
