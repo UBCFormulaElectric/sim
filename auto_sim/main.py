@@ -37,6 +37,17 @@ vehicle_state.v_x = 2.0
 # vehicle_state.theta = math.radians(23.54)
 vehicle_state.omega = -0.2
 
+def handle_key(key: int, state: VehicleState):
+	match key:
+		case pygame.K_d:
+			state.theta += 0.1
+		case pygame.K_a:
+			state.theta -= 0.1
+		case pygame.K_w:
+			state.x += 0.1
+		case pygame.K_s:
+			state.x -= 0.1
+
 while running:
     # handle events
     # pygame.QUIT event means the user clicked X to close your window
@@ -44,10 +55,11 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
+    dt = clock.get_time()
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
     controls = compute(vehicle_state, CONE_POSITIONS)
-    sim_step(vehicle_state, controls, clock.get_time())
+    sim_step(vehicle_state, controls, dt)
     render_world(vehicle_state, CONE_POSITIONS, screen)
 
     # flip() the display to put your work on screen

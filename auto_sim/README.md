@@ -1,5 +1,6 @@
 # TODO
-- simulation loop
-- basic boundary checking
-- basic controller?
-- full MPC
+
+* basic boundary checking， triangulation
+* basic controller?
+* full MPC
+

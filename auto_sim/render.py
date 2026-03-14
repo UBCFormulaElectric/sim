@@ -1,10 +1,9 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState
+from Controller import VehicleState, Cone, ConeColor
 from math import ceil, degrees
 import numpy as np
-from Controller import Cone, ConeColor
 
 PIXELS_PER_M = 	50.0
 w: int
@@ -18,21 +17,8 @@ def init():
 	car = pygame.image.load('fsae.png').convert_alpha()
 	vignette_image = pygame.image.load('vignette.png').convert_alpha()
 	vignette_image = pygame.transform.scale(vignette_image, (1800,1800))
-
-	vignette = pygame.surface.Surface((3000, 3000), pygame.SRCALPHA)
-	vignette.fill((0,0,0,0))
-	vignette.blit(vignette_image, vignette_image.get_rect(center=(1500, 1500)), special_flags=pygame.BLEND_RGBA_ADD)
-
-def handle_key(key: int, state: VehicleState):
-	match key:
-		case pygame.K_d:
-			state.theta += 0.1
-		case pygame.K_a:
-			state.theta -= 0.1
-		case pygame.K_w:
-			state.x += 0.1
-		case pygame.K_s:
-			state.x -= 0.1
+	vignette = pygame.Surface((3000,3000), pygame.SRCALPHA)
+	vignette.blit(vignette_image, vignette_image.get_rect(center=(1500,1500)))
 
 def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int]:
 	"""
@@ -59,6 +45,7 @@ old_state = None, None, None
 old_grid_surf = None
 def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), spacing_m=1):
 	global h, w, old_state, old_grid_surf, vignette
+	# create grid, cached
 	spacing_px =  int(spacing_m * PIXELS_PER_M)
 	l: int= ceil(np.hypot(w/2, h/2) * 0.4 / spacing_m) * spacing_m
 	if (spacing_m, color, l) != old_state or old_grid_surf is None:
@@ -67,15 +54,22 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), sp
 		old_grid_surf = create_grid_surface(2*l, spacing_px, color)
 	grid_surf = old_grid_surf
 
+	# grid
+	screen_grid = pygame.surface.Surface((w, h), pygame.SRCALPHA)
+
 	# Calculate grid offset to align with world coordinates
 	r = R.from_euler('z', -state.theta + np.pi/2, degrees=False)
 	x, y = r.apply([state.x % spacing_m, state.y % spacing_m, 0])[:2]
-	rotated_surf = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
-	screen.blit(rotated_surf, rotated_surf.get_rect(center=(
+	rotated_surf: pygame.Surface = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
+	screen_grid.blit(rotated_surf, rotated_surf.get_rect(center=(
 		w/2 - x * PIXELS_PER_M,
 		0.67 * h + y * PIXELS_PER_M
 	)).topleft)
-	screen.blit(vignette, vignette.get_rect(center=(w/2, 0.67*h)), special_flags=pygame.BLEND_RGBA_MULT)
+
+	# vignette
+	screen_grid.blit(vignette, vignette.get_rect(center=(w/2, 0.67*h)), special_flags=pygame.BLEND_RGBA_MULT)
+
+	screen.blit(screen_grid, (0, 0))
 
 def int_to_color(value: ConeColor) -> str:
 	match value:
