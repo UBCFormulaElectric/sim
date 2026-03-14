@@ -1,5 +1,3 @@
-import math
-
 import pygame
 from Controller import compute, sim_step, Cone, ConeColor, VehicleState
 from render import init, render_world
