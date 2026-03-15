@@ -1,9 +1,16 @@
 #include "controller.hpp"
-#include "triangulation.hpp"
+
+Triangulation t {};
+
+Triangulation& get_triangulation()
+{
+    return t;
+}
 
 ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones)
 {
     // Implementation for compute function
-    triangulate(cones);
+    t.triangulate(cones);
+    // t.adj will contain the adj list
     return { 0, 0 };
 }

@@ -34,6 +34,16 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used())
         .value("YELLOW", ConeColor::YELLOW)
         .export_values();
 
+    // export object t (of type Triangulation) to python
+    py::class_<Triangulation>(m, "Triangulation")
+        .def(py::init<>())
+        .def("triangulate", &Triangulation::triangulate)
+        .def_readonly("adj", &Triangulation::adj);
+
+    m.def("get_triangulation", &get_triangulation, R"pbdoc(
+        Get the current triangulation object)
+    )pbdoc");
+
     m.def("compute", &compute, R"pbdoc(
         Compute control output
     )pbdoc");

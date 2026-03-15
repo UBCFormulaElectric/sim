@@ -1,6 +1,13 @@
 #pragma once
 #include "types.hpp"
+#include <cmath>
+#include <memory>
+#include <optional>
+#include <span>
+#include <unordered_map>
 #include <vector>
+
+// inspired by https://youtu.be/1TUUevxkvp4
 
 class Triangulation {
     struct Triangle {
@@ -31,8 +38,8 @@ class Triangulation {
 
     public:
         bool is_intact() { return children.empty(); }
-        std::shared_ptr<TrianglePyramid>
-        find_triangle(const Cone& cone, const ConeList& existing_cones)
+
+        std::shared_ptr<TrianglePyramid> find_triangle(const Cone& cone, const ConeList& existing_cones)
         {
             for (const auto& child : children) {
                 if (child->t.contains(cone, existing_cones)) {
@@ -55,11 +62,50 @@ class Triangulation {
         }
     };
 
-    TrianglePyramid root { 0, 1, 2 }; // super triangle that contains all cones
+    class ConeList {
+        const std::optional<std::span<const Cone>> cones;
 
+    public:
+        ConeList()
+            : cones(std::nullopt)
+        {
+        }
+
+        void set_cones(std::span<const Cone> _cones)
+        {
+            cones.emplace(_cones);
+        }
+
+        const Cone& operator[](const size_t cone_id) const
+        {
+            switch (cone_id) {
+            case 0:
+                return Cone { -100, -100, ConeColor::BLUE };
+            case 1:
+                return Cone { 100, -100, ConeColor::YELLOW };
+            case 2:
+                return Cone { 0, 100, ConeColor::BLUE };
+            default:
+                return cones.value()[cone_id - 3];
+            }
+        }
+    };
+
+    TrianglePyramid root { 0, 1, 2 }; // super triangle that contains all cones
+    ConeList existing_cones {};
+
+    /**
+     * helpers
+     */
+    bool on_edge(const Cone& cone, const size_t a, const size_t b);
+    bool edge_detect(const Cone& cone, size_t& a, size_t& b, size_t& c);
+    void insert(const Cone& cone, const size_t cone_id);
+    void legalize_edge(const size_t new_cone, const size_t cone_a, const size_t cone_b);
+
+public:
+    Triangulation() = default;
     static std::unordered_map<size_t, std::vector<size_t>> adj {
         { 0, { 1, 2 } }, { 1, { 0, 2 } }, { 2, { 0, 1 } }
     }; // adj of the edges
-public:
     void triangulate(const std::vector<Cone>& cones);
 }

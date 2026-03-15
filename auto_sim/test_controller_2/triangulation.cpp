@@ -1,40 +1,10 @@
 #include "triangulation.hpp"
 
-#include <memory>
-#include <span>
-#include <unordered_map>
-
-class ConeList {
-    const std::span<const Cone> cones;
-
-public:
-    ConeList(const std::span<const Cone> _cones)
-        : cones(_cones)
-    {
-    }
-    const Cone& operator[](const size_t cone_id) const
-    {
-        switch (cone_id) {
-        case 0:
-            return Cone { -100, -100, ConeColor::BLUE };
-        case 1:
-            return Cone { 100, -100, ConeColor::YELLOW };
-        case 2:
-            return Cone { 0, 100, ConeColor::BLUE };
-        default:
-            return cones[cone_id - 3];
-        }
-    }
-};
-
-void legalize_edge(const size_t new_cone, const size_t cone_a, const size_t cone_b)
+void Triangulation::legalize_edge(const size_t new_cone, const size_t cone_a, const size_t cone_b)
 {
 }
 
-bool on_edge(const Cone& cone,
-    const size_t a,
-    const size_t b,
-    const ConeList& existing_cones)
+bool Triangulation::on_edge(const Cone& cone, const size_t a, const size_t b)
 {
     // check if cone lies on the edge (a,b)
     const Cone& cone_a = existing_cones[a];
@@ -56,28 +26,24 @@ bool on_edge(const Cone& cone,
     return true;
 }
 
-bool edge_detect(const Cone& cone,
-    size_t& a,
-    size_t& b,
-    size_t& c,
-    const ConeList& existing_cones)
+bool Triangulation::edge_detect(const Cone& cone, size_t& a, size_t& b, size_t& c)
 {
-    if (on_edge(cone, a, b, existing_cones)) {
+    if (on_edge(cone, a, b)) {
         return true;
-    } else if (on_edge(cone, b, c, existing_cones)) {
+    } else if (on_edge(cone, b, c)) {
         std::swap(a, c);
         return true;
-    } else if (on_edge(cone, a, c, existing_cones)) {
+    } else if (on_edge(cone, a, c)) {
         std::swap(b, c);
         return true;
     }
     return false;
 }
 
-void insert(const Cone& cone, const size_t cone_id, const ConeList existing_cones)
+void Triangulation::insert(const Cone& cone, const size_t cone_id)
 {
-    std::shared_ptr<TrianglePyramid> t = root.find_triangle(cone, existing_cones); // find smallest triangle which contains the cone
-    bool on_edge = edge_detect(cone, a, b, c, existing_cones); // check if cone lies on the edges of the triangle
+    std::shared_ptr<TrianglePyramid> t = root.find_triangle(cone); // find smallest triangle which contains the cone
+    bool on_edge = edge_detect(cone, a, b, c); // check if cone lies on the edges of the triangle
     if (on_edge) { // if on_edge, then cone is known to be on edge (a,b)
                    // very annoying
     } else { // split triangle a,b,c into three triangles a,b,cone_id;
@@ -104,7 +70,7 @@ void insert(const Cone& cone, const size_t cone_id, const ConeList existing_cone
  * @note This function assumes that the input vector of cones is an add-only
  * array whose order is preserved.
  */
-void triangulate(const std::vector<Cone>& cones)
+void Triangulation::triangulate(const std::vector<Cone>& cones)
 {
     static size_t last_seen_cone = 0;
     for (; last_seen_cone < cones.size(); ++last_seen_cone) {
@@ -112,6 +78,7 @@ void triangulate(const std::vector<Cone>& cones)
         // process the new cone
         const size_t cone_id = last_seen_cone + 3; // cones 0,1,2 are reserved for the super triangle
         const std::span<const Cone> s { cones };
-        insert(cone, cone_id, s.first(last_seen_cone - 1));
+        existing_cones.set_cones(s.first(last_seen_cone));
+        insert(cone, cone_id);
     }
 }
