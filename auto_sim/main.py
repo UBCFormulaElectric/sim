@@ -31,9 +31,9 @@ time: float = 0.0
 init()
 
 vehicle_state: VehicleState = VehicleState()
-vehicle_state.v_x = 2.0
+# vehicle_state.v_y = 2.0
 # vehicle_state.theta = math.radians(23.54)
-vehicle_state.omega = -0.2
+# vehicle_state.omega = -0.2
 
 def handle_key(key: int, state: VehicleState):
 	match key:

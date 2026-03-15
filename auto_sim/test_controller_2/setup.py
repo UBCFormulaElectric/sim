@@ -7,7 +7,7 @@ __version__ = "0.0.1"
 ext_modules = [
     Pybind11Extension(
         "Controller",
-        ["main.cpp"],
+        ["pybind.cpp", "triangulation.cpp", "sim.cpp"],
     ),
 ]
 
