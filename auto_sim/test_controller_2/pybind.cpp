@@ -37,7 +37,6 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used())
     // export object t (of type Triangulation) to python
     py::class_<Triangulation>(m, "Triangulation")
         .def(py::init<>())
-        .def("triangulate", &Triangulation::update)
         .def_readonly("adj", &Triangulation::adj);
 
     m.def("get_triangulation", &get_triangulation, R"pbdoc(
