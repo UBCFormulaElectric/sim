@@ -50,12 +50,12 @@ class Triangulation {
             , c(_c)
         {
         }
-        [[nodiscard]] bool contains(const Cone& cone) const
+        [[nodiscard]] bool contains(const Cone& cone, const ConeList& cones) const
         {
             // check if cone is inside the triangle formed by cones a, b, c
-            const Cone& cone_a = existing_cones[a];
-            const Cone& cone_b = existing_cones[b];
-            const Cone& cone_c = existing_cones[c];
+            const Cone& cone_a = cones[a];
+            const Cone& cone_b = cones[b];
+            const Cone& cone_c = cones[c];
             const double area_abc = 0.5 * std::abs(cone_a.x * (cone_b.y - cone_c.y) + cone_b.x * (cone_c.y - cone_a.y) + cone_c.x * (cone_a.y - cone_b.y));
             const double area_abp = 0.5 * std::abs(cone_a.x * (cone_b.y - cone.y) + cone_b.x * (cone.y - cone_a.y) + cone.x * (cone_a.y - cone_b.y));
             const double area_acp = 0.5 * std::abs(cone_a.x * (cone_c.y - cone.y) + cone_c.x * (cone.y - cone_a.y) + cone.x * (cone_a.y - cone_c.y));
@@ -65,20 +65,19 @@ class Triangulation {
     };
 
     class TrianglePyramid {
+    public:
         std::vector<std::shared_ptr<TrianglePyramid>> children {};
         Triangle t;
+        [[nodiscard]] bool is_intact() const { return children.empty(); }
 
-    public:
-        bool is_intact() const { return children.empty(); }
-
-        std::shared_ptr<TrianglePyramid> find_triangle(const Cone& cone)
+        [[nodiscard]] std::shared_ptr<TrianglePyramid> find_triangle(const Cone& cone, const ConeList& cones) const
         {
             for (const auto& child : children) {
-                if (child->t.contains(cone, existing_cones)) {
+                if (child->t.contains(cone, cones)) {
                     if (child->is_intact()) {
                         return child;
                     }
-                    return child->find_triangle(cone, existing_cones);
+                    return child->find_triangle(cone, cones);
                 }
             }
             throw std::runtime_error("Cone is not contained in any triangle");

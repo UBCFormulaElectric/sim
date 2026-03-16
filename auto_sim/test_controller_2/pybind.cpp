@@ -23,21 +23,21 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used())
         .def_readwrite("v_y", &VehicleState::v_y)
         .def_readwrite("omega", &VehicleState::omega);
 
+    py::enum_<ConeColor>(m, "ConeColor")
+        .value("BLUE", ConeColor::BLUE)
+        .value("YELLOW", ConeColor::YELLOW)
+        .export_values();
+
     py::class_<Cone>(m, "Cone")
         .def(py::init<double, double, ConeColor>())
         .def_readwrite("x", &Cone::x)
         .def_readwrite("y", &Cone::y)
         .def_readwrite("c", &Cone::c);
 
-    py::enum_<ConeColor>(m, "ConeColor")
-        .value("BLUE", ConeColor::BLUE)
-        .value("YELLOW", ConeColor::YELLOW)
-        .export_values();
-
     // export object t (of type Triangulation) to python
     py::class_<Triangulation>(m, "Triangulation")
         .def(py::init<>())
-        .def("triangulate", &Triangulation::triangulate)
+        .def("triangulate", &Triangulation::update)
         .def_readonly("adj", &Triangulation::adj);
 
     m.def("get_triangulation", &get_triangulation, R"pbdoc(

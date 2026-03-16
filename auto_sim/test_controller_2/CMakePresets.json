@@ -2,10 +2,15 @@
   "version": 10,
   "configurePresets": [
     {
-      "name": "default",
-      "displayName": "",
-      "description": "",
+      "name": "default_win",
       "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+      }
+    },
+    {
+      "name": "default_unix",
+      "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
       }

@@ -27,5 +27,5 @@ struct Cone {
   double x;
   double y;
   ConeColor c;
-  Cone(double _x, double _y, ConeColor _c) : x(_x), y(_y), c(_c) {}
+  Cone(const double _x, const double _y, const ConeColor _c) : x(_x), y(_y), c(_c) {}
 };
