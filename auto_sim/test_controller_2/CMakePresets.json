@@ -1,0 +1,14 @@
+{
+  "version": 10,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "",
+      "description": "",
+      "generator": "Visual Studio 17 2022",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+      }
+    }
+  ]
+}
