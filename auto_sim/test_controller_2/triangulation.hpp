@@ -14,19 +14,15 @@ class Triangulation {
         std::optional<std::span<const Cone>> cones;
 
     public:
-        ConeList()
-            : cones(std::nullopt)
-        {
+        ConeList() : cones(std::nullopt) {
         }
 
-        void set_cones(std::span<const Cone> _cones)
-        {
+        void set_cones(std::span<const Cone> _cones) {
             cones.emplace(_cones);
         }
 
-        const Cone& operator[](const size_t cone_id) const
-        {
-            static const Cone cone0{ -100, -100, ConeColor::BLUE },
+        const Cone& operator[](const size_t cone_id) const {
+            static const Cone cone0 { -100, -100, ConeColor::BLUE },
                 cone1 = { 100, -100, ConeColor::YELLOW },
                 cone2 = { 0, 100, ConeColor::BLUE };
             switch (cone_id) {
@@ -44,14 +40,8 @@ class Triangulation {
 
     struct Triangle {
         size_t a, b, c; // indices of the cones that form the triangle
-        Triangle(const size_t _a, const size_t _b, const size_t _c)
-            : a(_a)
-            , b(_b)
-            , c(_c)
-        {
-        }
-        [[nodiscard]] bool contains(const Cone& cone, const ConeList& cones) const
-        {
+        Triangle(const size_t _a, const size_t _b, const size_t _c) : a(_a), b(_b), c(_c) { }
+        [[nodiscard]] bool contains(const Cone& cone, const ConeList& cones) const {
             // check if cone is inside the triangle formed by cones a, b, c
             const Cone& cone_a = cones[a];
             const Cone& cone_b = cones[b];
@@ -66,12 +56,11 @@ class Triangulation {
 
     class TrianglePyramid {
     public:
-        std::vector<std::shared_ptr<TrianglePyramid>> children {};
+        std::vector<std::shared_ptr<TrianglePyramid>> children { };
         Triangle t;
         [[nodiscard]] bool is_intact() const { return children.empty(); }
 
-        [[nodiscard]] std::shared_ptr<TrianglePyramid> find_triangle(const Cone& cone, const ConeList& cones) const
-        {
+        [[nodiscard]] std::shared_ptr<TrianglePyramid> find_triangle(const Cone& cone, const ConeList& cones) const {
             for (const auto& child : children) {
                 if (child->t.contains(cone, cones)) {
                     if (child->is_intact()) {
@@ -83,18 +72,14 @@ class Triangulation {
             throw std::runtime_error("Cone is not contained in any triangle");
         }
         TrianglePyramid() = delete;
-        explicit TrianglePyramid(const Triangle& _t)
-            : t(_t)
-        {
+        explicit TrianglePyramid(const Triangle& _t) : t(_t) {
         }
-        TrianglePyramid(const size_t _a, const size_t _b, const size_t _c)
-            : t { _a, _b, _c }
-        {
+        TrianglePyramid(const size_t _a, const size_t _b, const size_t _c) : t { _a, _b, _c } {
         }
     };
 
     TrianglePyramid root { 0, 1, 2 }; // super triangle that contains all cones
-    ConeList existing_cones {};
+    ConeList existing_cones { };
 
     /**
      * helpers
