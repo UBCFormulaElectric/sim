@@ -1,7 +1,7 @@
 #pragma once
-#include "triangulation.hpp"
+#include "CDT.h"
 #include "types.hpp"
 #include <vector>
 
-Triangulation& get_triangulation();
+const CDT::EdgeUSet& get_triangulation();
 ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones);

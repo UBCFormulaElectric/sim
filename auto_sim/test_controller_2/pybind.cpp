@@ -7,8 +7,7 @@
 
 namespace py = pybind11;
 
-PYBIND11_MODULE(Controller, m, py::mod_gil_not_used())
-{
+PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     py::class_<ControlOutput>(m, "ControlOutput")
         .def(py::init<double, double>())
         .def_readwrite("ax", &ControlOutput::ax)
@@ -34,14 +33,13 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used())
         .def_readwrite("y", &Cone::y)
         .def_readwrite("c", &Cone::c);
 
-    // export object t (of type Triangulation) to python
-    py::class_<Triangulation>(m, "Triangulation")
-        .def(py::init<>())
-        .def_readonly("adj", &Triangulation::adj);
-
-    m.def("get_triangulation", &get_triangulation, R"pbdoc(
+    m.def("get_triangulation", &get_triangulation, py::return_value_policy::reference, R"pbdoc(
         Get the current triangulation object)
     )pbdoc");
+
+    py::class_<CDT::Edge>(m, "Edge")
+        .def("v1", &CDT::Edge::v1)
+        .def("v2", &CDT::Edge::v2);
 
     m.def("compute", &compute, R"pbdoc(
         Compute control output

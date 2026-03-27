@@ -1,7 +1,7 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor
+from Controller import VehicleState, Cone, ConeColor, get_triangulation
 from math import ceil, degrees
 import numpy as np
 
@@ -94,6 +94,13 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 		pygame.draw.circle(
 			screen, int_to_color(cone.c),
 			transform(cone.x, cone.y, vehicle_state), 0.2 * PIXELS_PER_M
+		)
+
+	for edge in get_triangulation():
+		v1, v2 = edge.v1(), edge.v2()
+		pygame.draw.line(screen, "white",
+			transform(cones[v1].x, cones[v1].y, vehicle_state),
+			transform(cones[v2].x, cones[v2].y, vehicle_state), 2
 		)
 	
 	car_rotated = pygame.transform.rotate(car,-90)
