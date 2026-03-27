@@ -1,6 +1,7 @@
 #include "controller.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <iostream>
 #include <iterator>
 
@@ -15,6 +16,7 @@ ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones) {
     // Implementation for compute function
     static size_t seen_points = 0;
     if (seen_points < cones.size()) {
+        const auto start_time = std::chrono::high_resolution_clock::now();
         const auto start = std::next(
             cones.begin(),
             static_cast<std::vector<Cone>::difference_type>(std::min(seen_points, cones.size())));
@@ -26,6 +28,9 @@ ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones) {
         edges = CDT::extractEdgesFromTriangles(cdt.triangles);
         std::cout << "number of edges " << edges.size() << std::endl;
         seen_points = cones.size();
+        const auto end_time = std::chrono::high_resolution_clock::now();
+        const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
+        std::cout << "Time taken to insert vertices and extract edges: " << duration << " us" << std::endl;
     }
     // cdt.eraseSuperTriangle();
     // t.adj will contain the adj list
