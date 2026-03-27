@@ -2,14 +2,15 @@
 #include "scopetimer.hpp"
 
 std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, const ConeColor c) {
-    size_t at = 0;
+    size_t start = 0;
     std::unordered_set<size_t> unvisited_blue_cones { };
     for (size_t i = 0; i < cones.size(); ++i) {
         if (cones[i].c == c) {
-            at = i;
+            start = i;
             unvisited_blue_cones.insert(i);
         }
     }
+    size_t at = start;
 
     std::vector<CDT::VertInd> path;
     path.reserve(unvisited_blue_cones.size());
@@ -24,6 +25,9 @@ std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, con
                 closest_cone = i;
             }
         }
+        if (closest_cone == start) {
+            break;
+        }
         unvisited_blue_cones.erase(closest_cone);
         path.push_back(closest_cone);
         at = closest_cone;
@@ -32,11 +36,18 @@ std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, con
     return path;
 }
 
+static double get_cone_x(const Cone& c) {
+    return c.x;
+}
+static double get_cone_y(const Cone& c) {
+    return c.y;
+}
+
 static CDT::EdgeUSet offline_edges;
 void compute_path(const std::vector<Cone>& cones) {
     ScopeTimer s { "offline triangulation timer" };
     CDT::Triangulation<double> cdt;
-    cdt.insertVertices(cones.begin(), cones.end(), [](const Cone& c) { return c.x; }, [](const Cone& c) { return c.y; });
+    cdt.insertVertices(cones.begin(), cones.end(), get_cone_x, get_cone_y);
 
     // calculate boundary edges and insert them into the triangulation
     std::vector<CDT::Edge> edges { };
