@@ -1,11 +1,11 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor, get_triangulation
+from Controller import VehicleState, Cone, ConeColor, get_offline_edges, calculate_boundary
 from math import ceil, degrees
 import numpy as np
 
-PIXELS_PER_M = 	50.0
+PIXELS_PER_M = 	20.0
 w: int
 h: int
 
@@ -16,7 +16,7 @@ def init():
 	global car, vignette
 	car = pygame.image.load('fsae.png').convert_alpha()
 	vignette_image = pygame.image.load('vignette.png').convert_alpha()
-	vignette_image = pygame.transform.scale(vignette_image, (1800,1800))
+	vignette_image = pygame.transform.scale(vignette_image, (30 * PIXELS_PER_M,30 * PIXELS_PER_M))
 	vignette = pygame.Surface((3000,3000), pygame.SRCALPHA)
 	vignette.blit(vignette_image, vignette_image.get_rect(center=(1500,1500)))
 
@@ -80,6 +80,8 @@ def int_to_color(value: ConeColor) -> str:
 		case _:
 			return "white"
 
+# boundary = None
+
 def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface):
 	global w, h
 	w, h = screen.get_width(), screen.get_height()
@@ -90,12 +92,25 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	p = transform(0, 0, vehicle_state)
 	pygame.draw.circle(screen, "white",p , 5)
 
+	# if boundary is None:
+	# 	boundary = calculate_boundary(cones, ConeColor.YELLOW)
 
-	for edge in get_triangulation():
-		v1, v2 = edge.v1(), edge.v2()
-		pygame.draw.line(screen, "#676767",
-			transform(cones[v1].x, cones[v1].y, vehicle_state),
-			transform(cones[v2].x, cones[v2].y, vehicle_state), 2
+	for edge in get_offline_edges():
+		v1, v2 = cones[edge.v1()], cones[edge.v2()]
+	# for i in range(len(boundary)):
+	# 	v1, v2 = cones[boundary[i]], cones[boundary[(i+1) % len(boundary)]]
+		default_colour = "#676767"
+		if v1.c == v2.c:
+			match v1.c:
+				case ConeColor.BLUE:
+					default_colour = "blue"
+				case ConeColor.YELLOW:
+					default_colour = "yellow"
+				case _:
+					default_colour = "red"
+		pygame.draw.line(screen, default_colour,
+			transform(v1.x, v1.y, vehicle_state),
+			transform(v2.x, v2.y, vehicle_state), 2
 		)
 
 	for cone in cones:

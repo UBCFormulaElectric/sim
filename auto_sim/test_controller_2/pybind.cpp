@@ -33,16 +33,31 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
         .def_readwrite("y", &Cone::y)
         .def_readwrite("c", &Cone::c);
 
-    m.def("get_triangulation", &get_triangulation, py::return_value_policy::reference, R"pbdoc(
-        Get the current triangulation object)
-    )pbdoc");
-
     py::class_<CDT::Edge>(m, "Edge")
         .def("v1", &CDT::Edge::v1)
         .def("v2", &CDT::Edge::v2);
 
     m.def("compute", &compute, R"pbdoc(
         Compute control output
+    )pbdoc");
+
+    // offline path calculations
+    m.def("calculate_boundary", &calculate_boundary, R"pbdoc(
+        Calculate the boundary of the given color from the list of cones
+    )pbdoc");
+    m.def("compute_path", &compute_path, R"pbdoc()
+        Compute the triangulation from a list of cones
+    )pbdoc");
+    m.def("get_offline_edges", &get_offline_edges, py::return_value_policy::reference, R"pbdoc()
+        Get the offline edges calculated from compute_path()
+    )pbdoc");
+
+    // online path caclulations
+    m.def("update_cone_positions", &update_cone_positions, R"pbdoc()
+        Update the triangulation with new cone positions
+    )pbdoc");
+    m.def("get_triangulation", &get_triangulation, py::return_value_policy::reference, R"pbdoc(
+        Get the current triangulation object)
     )pbdoc");
 
     m.def("sim_step", &sim_step, R"pbdoc(

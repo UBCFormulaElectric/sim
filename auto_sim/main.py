@@ -1,5 +1,5 @@
 import pygame
-from Controller import compute, sim_step, Cone, ConeColor, VehicleState
+from Controller import compute, sim_step, Cone, ConeColor, VehicleState, compute_path
 from render import init, render_world
 import ctypes
 import platform
@@ -38,13 +38,20 @@ vehicle_state: VehicleState = VehicleState()
 def handle_key(key: int, state: VehicleState):
 	match key:
 		case pygame.K_d:
-			state.theta += 0.1
+			state.y -= 1
 		case pygame.K_a:
-			state.theta -= 0.1
+			state.y += 1
 		case pygame.K_w:
-			state.x += 0.1
+			state.x += 1
 		case pygame.K_s:
-			state.x -= 0.1
+			state.x -= 1
+
+ran = False
+def simulate_cone_detection(state: VehicleState, cones: list[Cone]):
+    global ran
+    if not ran:
+        compute_path(cones)
+        ran = True
 
 while running:
     # handle events
@@ -52,11 +59,14 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            handle_key(event.key, vehicle_state)
 
     dt = clock.get_time()
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
-    controls = compute(vehicle_state, CONE_POSITIONS)
+    simulate_cone_detection(vehicle_state, CONE_POSITIONS)
+    controls = compute(vehicle_state)
     sim_step(vehicle_state, controls, dt)
     render_world(vehicle_state, CONE_POSITIONS, screen)
 
