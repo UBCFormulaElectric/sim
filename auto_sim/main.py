@@ -47,11 +47,12 @@ def handle_key(key: int, state: VehicleState):
 			state.x -= 1
 
 ran = False
-def simulate_cone_detection(state: VehicleState, cones: list[Cone]):
+def simulate_cone_detection(state: VehicleState):
     global ran
     if not ran:
-        compute_path(cones)
+        compute_path(CONE_POSITIONS)
         ran = True
+    return CONE_POSITIONS
 
 while running:
     # handle events
@@ -62,11 +63,13 @@ while running:
         elif event.type == pygame.KEYDOWN:
             handle_key(event.key, vehicle_state)
 
-    dt = clock.get_time()
-    # fill the screen with a color to wipe away anything from last frame
-    screen.fill("black")
-    simulate_cone_detection(vehicle_state, CONE_POSITIONS)
+    # this is what is running on the 
+    detected_cones = simulate_cone_detection(vehicle_state)
     controls = compute(vehicle_state)
+
+    # closing the SIL loop
+    dt = clock.get_time()
+    screen.fill("black")
     sim_step(vehicle_state, controls, dt)
     render_world(vehicle_state, CONE_POSITIONS, screen)
 
