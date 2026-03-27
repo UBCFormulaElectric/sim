@@ -21,16 +21,13 @@ ControlOutput compute(const VehicleState& ve, const std::vector<Cone>& cones) {
             cones.begin(),
             static_cast<std::vector<Cone>::difference_type>(std::min(seen_points, cones.size())));
         cdt.insertVertices(start, cones.end(), [](const Cone& c) { return c.x; }, [](const Cone& c) { return c.y; });
-        // CDT::Triangulation<double> cpy = cdt;
-        // cpy.eraseOuterTriangles();
-        // std::cout << "number of vertices in cpy " << cpy.vertices.size() << std::endl;
-        cdt.eraseSuperTriangle();
-        edges = CDT::extractEdgesFromTriangles(cdt.triangles);
-        std::cout << "number of edges " << edges.size() << std::endl;
+        CDT::Triangulation<double> cpy = cdt;
+        cpy.eraseSuperTriangle();
+        edges = CDT::extractEdgesFromTriangles(cpy.triangles);
         seen_points = cones.size();
         const auto end_time = std::chrono::high_resolution_clock::now();
         const auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-        std::cout << "Time taken to insert vertices and extract edges: " << duration << " us" << std::endl;
+        std::cout << "triangulation time: " << duration << " us" << std::endl;
     }
     // cdt.eraseSuperTriangle();
     // t.adj will contain the adj list
