@@ -90,17 +90,18 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	p = transform(0, 0, vehicle_state)
 	pygame.draw.circle(screen, "white",p , 5)
 
+
+	for edge in get_triangulation():
+		v1, v2 = edge.v1(), edge.v2()
+		pygame.draw.line(screen, "#676767",
+			transform(cones[v1].x, cones[v1].y, vehicle_state),
+			transform(cones[v2].x, cones[v2].y, vehicle_state), 2
+		)
+
 	for cone in cones:
 		pygame.draw.circle(
 			screen, int_to_color(cone.c),
 			transform(cone.x, cone.y, vehicle_state), 0.2 * PIXELS_PER_M
-		)
-
-	for edge in get_triangulation():
-		v1, v2 = edge.v1(), edge.v2()
-		pygame.draw.line(screen, "white",
-			transform(cones[v1].x, cones[v1].y, vehicle_state),
-			transform(cones[v2].x, cones[v2].y, vehicle_state), 2
 		)
 	
 	car_rotated = pygame.transform.rotate(car,-90)
