@@ -51,6 +51,12 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     m.def("get_offline_edges", &get_offline_edges, py::return_value_policy::reference, R"pbdoc()
         Get the offline edges calculated from compute_path()
     )pbdoc");
+    m.def("get_center_points", &get_center_points, py::return_value_policy::reference, R"pbdoc())
+        Get the center points calculated from compute_path()
+    )pbdoc");
+    m.def("get_center_line", get_center_line, py::return_value_policy::reference, R"pbdoc())
+        Get the center line calculated from compute_path()
+    )pbdoc");
 
     // online path caclulations
     m.def("update_cone_positions", &update_cone_positions, R"pbdoc()

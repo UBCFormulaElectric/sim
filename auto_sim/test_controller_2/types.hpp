@@ -27,6 +27,7 @@ enum class ConeColor {
     BLUE,
     YELLOW,
     ORANGE,
+    CENTER
 };
 struct Cone {
     double x;

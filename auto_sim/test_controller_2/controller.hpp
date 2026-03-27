@@ -28,6 +28,18 @@ void compute_path(const std::vector<Cone>& cones);
  * @return offline edges
  */
 const CDT::EdgeUSet& get_offline_edges();
+/**
+ * @return boundary edges
+ */
+const CDT::EdgeUSet& get_boundary_edges();
+/**
+ * @return center points
+ */
+const std::vector<Cone>& get_center_points();
+/**
+ * @return center line vertices
+ */
+const std::vector<CDT::VertInd>& get_center_line();
 
 // online path planning
 void update_cone_positions(const std::vector<Cone>& cones);

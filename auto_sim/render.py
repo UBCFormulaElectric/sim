@@ -1,7 +1,7 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor, get_offline_edges, calculate_boundary
+from Controller import VehicleState, Cone, ConeColor, get_offline_edges, get_center_line, get_center_points
 from math import ceil, degrees
 import numpy as np
 
@@ -95,19 +95,27 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	# if boundary is None:
 	# 	boundary = calculate_boundary(cones, ConeColor.YELLOW)
 
-	for edge in get_offline_edges():
-		v1, v2 = cones[edge.v1()], cones[edge.v2()]
-	# for i in range(len(boundary)):
-	# 	v1, v2 = cones[boundary[i]], cones[boundary[(i+1) % len(boundary)]]
+	# for edge in get_offline_edges():
+	# 	v1, v2 = cones[edge.v1()], cones[edge.v2()]
+	# 	default_colour = "#676767"
+	# 	if v1.c == v2.c:
+	# 		match v1.c:
+	# 			case ConeColor.BLUE:
+	# 				default_colour = "blue"
+	# 			case ConeColor.YELLOW:
+	# 				default_colour = "yellow"
+	# 			case _:
+	# 				default_colour = "red"
+	# 	pygame.draw.line(screen, default_colour,
+	# 		transform(v1.x, v1.y, vehicle_state),
+	# 		transform(v2.x, v2.y, vehicle_state), 2
+	# 	)
+
+	center_points = get_center_points()
+	center_line = get_center_line()
+	for i in range(len(center_line)):
+		v1, v2 = center_points[center_line[i]], center_points[center_line[(i+1) % len(center_line)]]
 		default_colour = "#676767"
-		if v1.c == v2.c:
-			match v1.c:
-				case ConeColor.BLUE:
-					default_colour = "blue"
-				case ConeColor.YELLOW:
-					default_colour = "yellow"
-				case _:
-					default_colour = "red"
 		pygame.draw.line(screen, default_colour,
 			transform(v1.x, v1.y, vehicle_state),
 			transform(v2.x, v2.y, vehicle_state), 2
