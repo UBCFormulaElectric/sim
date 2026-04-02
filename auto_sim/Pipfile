@@ -9,6 +9,8 @@ numpy = "*"
 scipy = "*"
 setuptools = "*"
 pybind11 = "*"
+requests = "*"
+casadi = "==3.6.7"
 
 [dev-packages]
 
