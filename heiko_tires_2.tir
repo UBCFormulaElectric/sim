@@ -1,0 +1,310 @@
+[MDI_HEADER]
+FILE_TYPE                = 'tir'
+FILE_VERSION             = 3.0
+FILE_FORMAT              = 'ASCII'
+!
+! Converted from JSON format
+! Date: 02-Apr-2026 10:11:48
+!
+! Model name: Hoosier_Tire
+!
+
+$----------------------------------------------------------------units
+[UNITS]
+LENGTH                   = 'meter'
+FORCE                    = 'newton'
+ANGLE                    = 'radians'
+MASS                     = 'kg'
+TIME                     = 'second'
+
+$----------------------------------------------------------------model
+[MODEL]
+FITTYP                   = 62                 $Magic Formula Version number
+TYRESIDE                 = 'RIGHT'
+LONGVL                   = 11.1             $Nominal speed
+PROPERTY_FILE_FORMAT     = 'MF-TYRE'
+FUNCTION_NAME            = ''
+N_TIRE_STATES            = 0
+USE_MODE                 = 14                 $Tire use mode switch (ADAMS only)
+PLYSTEER                 = 'true'             $Plysteer
+TURNSLIP                 = 'true'             $Turnslip
+VXLOW                    = 1                  $Lower boundary of slip calculation
+
+$----------------------------------------------------------------dimension
+[DIMENSION]
+UNLOADED_RADIUS          = 0.2286           $Free tire radius
+WIDTH                    = 0.1524             $Nominal section width of the tire
+ASPECT_RATIO             = 0.67               $Nominal aspect ratio
+RIM_RADIUS               = 0.127              $Nominal rim radius
+RIM_WIDTH                = 0.1778             $Rim width
+
+$----------------------------------------------------------------operating_conditions
+[OPERATING_CONDITIONS]
+INFLPRES                 = 82737.12         $Tire inflation pressure
+NOMPRES                  = 82737.12         $Nominal tire inflation pressure
+
+$----------------------------------------------------------------inertia
+[INERTIA]
+MASS                     = 9.3                $Tire Mass
+IXX                      = 0.391              $Tire diametral moment of inertia
+IYY                      = 0.736              $Tire polar moment of inertia
+
+$----------------------------------------------------------------vertical
+[VERTICAL]
+FNOMIN                   = 739.5              $Nominal wheel load
+VERTICAL_STIFFNESS       = 1.0              $Tire vertical stiffness
+VERTICAL_DAMPING         = 50                 $Tire vertical damping
+MC_CONTOUR_A             = 0                  $Motorcycle contour ellipse A
+MC_CONTOUR_B             = 0                  $Motorcycle contour ellipse B
+BREFF                    = 0.0              $Low load stiffness effective rolling radius
+DREFF                    = 0.0              $Peak value of effective rolling radius
+FREFF                    = 0.0              $High load stiffness effective rolling radius
+Q_RE0                    = 0.0              $Ratio of free tire radius with nominal tire radius
+Q_V1                     = 0.0              $Tire radius increase with speed
+Q_V2                     = 0.0              $Vertical stiffness increase with speed
+Q_FZ2                    = 0.0              $Quadratic term in load vs. deflection
+Q_FCX                    = 0.0              $Longitudinal force influence on vertical stiffness
+Q_FCY                    = 0.0              $Lateral force influence on vertical stiffness
+Q_FCY2                   = 0.0              $Explicit load dependency for including the lateral force influence on vertical stiffness
+Q_CAM                    = 0.0              $Stiffness reduction due to camber
+Q_CAM1                   = 0.0              $Linear load dependent camber angle effect on vertical stiffness
+Q_CAM2                   = 0.0              $Quadratic load dependent camber angle effect on vertical stiffness
+Q_CAM3                   = 0.0              $Linear reduction of stiffness with load and camber angle
+Q_FYS1                   = 0.0              $Constant camber and slip angle effect on vertical stiffness
+Q_FYS2                   = 0.0              $Linear camber and slip angle effect on vertical stiffness
+Q_FYS3                   = 0.0              $Quadratic camber and slip angle effect on vertical stiffness
+PFZ1                     = 0.7098             $Pressure effect on vertical stiffness
+BOTTOM_OFFST             = 0.01               $Distance to rim when bottoming starts to occur
+BOTTOM_STIFF             = 2000000            $Vertical stiffness of bottomed tire
+
+$----------------------------------------------------------------structural
+[STRUCTURAL]
+LONGITUDINAL_STIFFNESS   = 180205.88426010692$Tire overall longitudinal stiffness
+LATERAL_STIFFNESS        = 120137.25617340462$Tire overall lateral stiffness
+YAW_STIFFNESS            = 4795               $Tire overall yaw stiffness
+DAMP_VLOW                = 0.001              $Additional low speed damping (proportional to stiffness)
+PCFX1                    = 4.997826326058429e-29$Tire overall longitudinal stiffness vertical deflection dependency linear term
+PCFX2                    = 0.04559803459948562$Tire overall longitudinal stiffness vertical deflection dependency quadratic term
+PCFX3                    = 0.9999999999999999$Tire overall longitudinal stiffness pressure dependency
+PCFY1                    = 4.997826326058429e-29$Tire overall lateral stiffness vertical deflection dependency linear term
+PCFY2                    = 0.04559803459948562$Tire overall lateral stiffness vertical deflection dependency quadratic term
+PCFY3                    = 0.9999999999999999$Tire overall lateral stiffness pressure dependency
+PCMZ1                    = 0                  $Tire overall yaw stiffness pressure dependency
+
+$----------------------------------------------------------------contact_patch
+[CONTACT_PATCH]
+Q_RA1                    = 0.671              $Square root term in contact length equation
+Q_RA2                    = 0.733              $Linear term in contact length equation
+Q_RB1                    = 1.059              $Root term in contact width equation
+Q_RB2                    = -1.1878            $Linear term in contact width equation
+
+$----------------------------------------------------------------inflation_pressure_range
+[INFLATION_PRESSURE_RANGE]
+PRESMIN                  = 55158.1          $Minimum valid tire inflation pressure
+PRESMAX                  = 103421.0         $Maximum valid tire inflation pressure
+
+$----------------------------------------------------------------long_slip_range
+[LONG_SLIP_RANGE]
+KPUMIN                   = 0                  $Minimum valid wheel slip
+KPUMAX                   = 0                  $Maximum valid wheel slip
+$----------------------------------------------------------------slip_angle_range
+[SLIP_ANGLE_RANGE]
+ALPMIN                   = -0.261799        $Minimum valid slip angle
+ALPMAX                   = 0.261799         $Maximum valid slip angle
+$----------------------------------------------------------------inclination_angle_range
+[INCLINATION_ANGLE_RANGE]
+CAMMIN                   = -0.08726         $Minimum valid camber angle
+CAMMAX                   = 0.08726          $Maximum valid camber angle
+$----------------------------------------------------------------vertical_force_range
+[VERTICAL_FORCE_RANGE]
+FZMIN                    = 100.0            $Minimum allowed wheel load
+FZMAX                    = 2500.0           $Maximum allowed wheel load
+
+$----------------------------------------------------------------scaling_coefficients
+[SCALING_COEFFICIENTS]
+LFZO                          = 1                   $Scale factor of nominal (rated) load
+LCX                           = 1                   $Scale factor of Fx shape factor
+LMUX                          = 1                   $Scale factor of Fx peak friction coefficient
+LEX                           = 1                   $Scale factor of Fx curvature factor
+LKX                           = 1                   $Scale factor of Fx slip stiffness
+LHX                           = 1                   $Scale factor of Fx horizontal shift
+LVX                           = 1                   $Scale factor of Fx vertical shift
+LCY                           = 1                   $Scale factor of Fy shape factor
+LMUY                          = 1                   $Scale factor of Fy peak friction coefficient
+LEY                           = 1                   $Scale factor of Fy curvature factor
+LKY                           = 1                   $Scale factor of Fy cornering stiffness
+LHY                           = 1                   $Scale factor of Fy horizontal shift
+LVY                           = 1                   $Scale factor of Fy vertical shift
+LTR                           = 1                   $Scale factor of Peak of pneumatic trail
+LRES                          = 1                   $Scale factor for offset of Mz residual torque
+LXAL                          = 1                   $Scale factor of alpha influence on Fx
+LYKA                          = 1                   $Scale factor of kappa influence on Fy
+LVYKA                         = 1                   $Scale factor of kappa induced Fy
+LS                            = 1                   $Scale factor of Moment arm of Fx
+LKYC                          = 1                   $Scale factor of Fy camber stiffness
+LKZC                          = 1                   $Scale factor of Mz camber stiffness
+LVMX                          = 1                   $Scale factor of Mx vertical shift
+LMX                           = 1                   $Scale factor of Mx overturning moment
+LMY                           = 1                   $Scale factor of rolling resistance torque
+LMP                           = 1                   $Scale factor of Mz parking torque
+LCZ                           = 1                   $Scale factor radial tire stiffness
+LMUV                          = 1                   $Scale factor with slip speed decaying friction
+
+$----------------------------------------------------------------longitudinal_coefficients
+[LONGITUDINAL_COEFFICIENTS]
+PCX1                          = 1.47792             $Shape factor Cfx for longitudinal force
+PDX1                          = 1.41768             $Longitudinal friction Mux at Fznom
+PDX2                          = 0.0700166           $Variation of friction Mux with load
+PDX3                          = 4.09716             $Variation of friction Mux with camber
+PEX1                          = 0.25                
+PEX2                          = -0.4936             
+PEX3                          = 0.062309            
+PEX4                          = 0.5                 
+PKX1                          = 44.4087             
+PKX2                          = -0.114677           
+PKX3                          = 0.0051233           
+PHX1                          = 0.000286113         
+PHX2                          = -0.00172832         
+PVX1                          = 0.005               
+PVX2                          = 0.00477149          
+PPX1                          = 5.9855924377e-20    
+PPX2                          = -1.5                
+PPX3                          = -0.458575           
+PPX4                          = -0.430693           
+RBX1                          = 7.4806              
+RBX2                          = 10.3587             
+RBX3                          = 30                  
+RCX1                          = 1.4                 
+REX1                          = -1.11346            
+REX2                          = -0.555833           
+RHX1                          = -1.0000000000e-06   
+
+$----------------------------------------------------------------lateral_coefficients
+[LATERAL_COEFFICIENTS]
+PCY1                          = 1.1204              
+PDY1                          = 1.64222             
+PDY2                          = -0.32532            
+PDY3                          = 8.96121             
+PEY1                          = -0.353569           
+PEY2                          = 0.5                 
+PEY3                          = 0.5                 
+PEY4                          = -4.3346742910e-12   
+PEY5                          = -10                 
+PKY1                          = -58.8756            
+PKY2                          = 2.6                 
+PKY3                          = 0.82447             
+PKY4                          = 1.73528             
+PKY5                          = 0.246779            
+PKY6                          = -4.06378            
+PKY7                          = -2                  
+PHY1                          = 0.00182546          
+PHY2                          = 0.000636193         
+PVY1                          = 0.05                
+PVY2                          = -0.0036552          
+PVY3                          = 0.0983321           
+PVY4                          = 0.0465855           
+PPY1                          = 0.569312            
+PPY2                          = 1                   
+PPY3                          = -0.151827           
+PPY4                          = -1.6963735362e-22   
+PPY5                          = -1                  
+RBY1                          = 29.9998             
+RBY2                          = 12.134              
+RBY3                          = 9.9999999999e-07    
+RBY4                          = 75                  
+RCY1                          = 0.965142            
+REY1                          = 0.61543             
+REY2                          = 0.174596            
+RHY1                          = 1.0000000000e-06    
+RHY2                          = 0.0000000000e+00    
+RVY1                          = -0.001              
+RVY2                          = -0.002              
+RVY3                          = -0.05               
+RVY4                          = -2                  
+RVY5                          = 2.5                 
+RVY6                          = -11.3254            
+
+$----------------------------------------------------------------aligning_coefficients
+[ALIGNING_COEFFICIENTS]
+QBZ1                          = 6.60806             
+QBZ2                          = -1.78557            
+QBZ3                          = 0.0000000000e+00    
+QBZ4                          = 0.0000000000e+00    
+QBZ5                          = -1                  
+QBZ9                          = 6.54673             
+QBZ10                         = 0.0000000000e+00    
+QCZ1                          = 1.1                 
+QDZ1                          = 0.136052            
+QDZ2                          = -0.0673485          
+QDZ3                          = 0.5                 
+QDZ4                          = -1.5                
+QDZ6                          = 0.0171131           
+QDZ7                          = -0.028301           
+QDZ8                          = -0.5                
+QDZ9                          = 0.02                
+QDZ10                         = 0.0000000000e+00    
+QDZ11                         = 0.0000000000e+00    
+QEZ1                          = -5.88202            
+QEZ2                          = 4.83736             
+QEZ3                          = 13.7151             
+QEZ4                          = 0.191406            
+QEZ5                          = -2                  
+QHZ1                          = 0.00841306          
+QHZ2                          = 0.005               
+QHZ3                          = 0.0000000000e+00    
+QHZ4                          = 0.0000000000e+00    
+PPZ1                          = 0.5                 
+PPZ2                          = 0.0000000000e+00    
+SSZ1                          = 0.0000000000e+00    
+SSZ2                          = 0.0000000000e+00    
+SSZ3                          = 0.0000000000e+00    
+SSZ4                          = 0.0000000000e+00    
+
+$----------------------------------------------------------------overturning_coefficients
+[OVERTURNING_COEFFICIENTS]
+QSX1                          = 0.0000000000e+00    
+QSX2                          = 0.5                 
+QSX3                          = 0.05                
+QSX4                          = 5                   
+QSX5                          = 2                   
+QSX6                          = 10                  
+QSX7                          = 2                   
+QSX8                          = -0.1                
+QSX9                          = 0.2                 
+QSX10                         = 0.1                 
+QSX11                         = 3                   
+PPMX1                         = 0.0000000000e+00    
+
+$----------------------------------------------------------------rolling_coefficients
+[ROLLING_COEFFICIENTS]
+QSY1                          = 0.01                
+QSY2                          = 0.0000000000e+00    
+QSY3                          = 0.0000000000e+00    
+QSY4                          = 0.0004              
+QSY5                          = 0.0000000000e+00    
+QSY6                          = 0.0000000000e+00    
+QSY7                          = 0.85                
+QSY8                          = 0.45                
+
+$----------------------------------------------------------------turnslip_coefficients
+[TURNSLIP_COEFFICIENTS]
+PDXP1                    = 0.4                $Peak Fx reduction due to spin parameter
+PDXP2                    = 0                  $Peak Fx reduction due to spin with varying load parameter
+PDXP3                    = 0                  $Peak Fx reduction due to spin with kappa parameter
+PKYP1                    = 1                  $Cornering stiffness reduction due to spin
+PDYP1                    = 0.4                $Peak Fy reduction due to spin parameter
+PDYP2                    = 0                  $Peak Fy reduction due to spin with varying load parameter
+PDYP3                    = 0                  $Peak Fy reduction due to spin with alpha parameter
+PDYP4                    = 0                  $Peak Fy reduction due to square root of spin parameter
+PHYP1                    = 1                  $Fy-alpha curve lateral shift limitation
+PHYP2                    = 0.15               $Fy-alpha curve maximum lateral shift parameter
+PHYP3                    = 0                  $Fy-alpha curve maximum lateral shift varying with load parameter
+PHYP4                    = -4                 $Fy-alpha curve maximum lateral shift parameter
+PECP1                    = 0.5                $Camber w.r.t. spin reduction factor parameter in camber stiffness
+PECP2                    = 0                  $Camber w.r.t. spin reduction factor varying with load parameter in camber stiffness
+QDTP1                    = 10                 $Pneumatic trail reduction factor due to turn slip parameter
+QCRP1                    = 0.2                $Turning moment at constant turning and zero forward speed parameter
+QCRP2                    = 0.1                $Turn slip moment (at alpha=90deg) parameter for increase with spin
+QBRP1                    = 0.1                $Residual (spin) torque reduction factor parameter due to side slip
+QDRP1                    = 1                  $Turn slip moment peak magnitude parameter
+QDRP2                    = 0                  $Turn slip moment curvature factor
