@@ -144,7 +144,7 @@ def create_vertical_section(data):
         "$" + "-" * 64 + "vertical",
         "[VERTICAL]",
         f"FNOMIN                   = {basic.get('FZ0', 739.5):<17}$Nominal wheel load",
-        f"VERTICAL_STIFFNESS       = {loaded_radius.get('VERTICAL_STIFFNESS', 209651):<17}$Tire vertical stiffness",
+        f"VERTICAL_STIFFNESS       = {loaded_radius.get('VERTICAL_STIFFNESS', 209651):<17}$Tire vertical stiffness", # THIS ONE!!!!
         "VERTICAL_DAMPING         = 50                 $Tire vertical damping",
         "MC_CONTOUR_A             = 0                  $Motorcycle contour ellipse A",
         "MC_CONTOUR_B             = 0                  $Motorcycle contour ellipse B",
@@ -181,15 +181,15 @@ def create_structural_section(data):
         "[STRUCTURAL]",
         f"LONGITUDINAL_STIFFNESS   = {transient.get('LONGITUDINAL_STIFFNESS', 358066):<17}$Tire overall longitudinal stiffness",
         f"LATERAL_STIFFNESS        = {transient.get('LATERAL_STIFFNESS', 102673):<17}$Tire overall lateral stiffness",
-        "YAW_STIFFNESS            = 4795               $Tire overall yaw stiffness",
-        "DAMP_VLOW                = 0.001              $Additional low speed damping (proportional to stiffness)",
+        # "YAW_STIFFNESS            = 4795               $Tire overall yaw stiffness",
+        # "DAMP_VLOW                = 0.001              $Additional low speed damping (proportional to stiffness)",
         f"PCFX1                    = {transient.get('PCFX1', 0.17504):<17}$Tire overall longitudinal stiffness vertical deflection dependency linear term",
         f"PCFX2                    = {transient.get('PCFX2', 0):<17}$Tire overall longitudinal stiffness vertical deflection dependency quadratic term",
         f"PCFX3                    = {transient.get('PCFX3', 0):<17}$Tire overall longitudinal stiffness pressure dependency",
         f"PCFY1                    = {transient.get('PCFY1', 0.16365):<17}$Tire overall lateral stiffness vertical deflection dependency linear term",
         f"PCFY2                    = {transient.get('PCFY2', 0):<17}$Tire overall lateral stiffness vertical deflection dependency quadratic term",
         f"PCFY3                    = {transient.get('PCFY3', 0.24993):<17}$Tire overall lateral stiffness pressure dependency",
-        "PCMZ1                    = 0                  $Tire overall yaw stiffness pressure dependency",
+        # "PCMZ1                    = 0                  $Tire overall yaw stiffness pressure dependency",
     ]
     return lines
 
@@ -242,53 +242,6 @@ def create_slip_ranges_section(data):
         f"FZMIN                    = {limits.get('FZMIN', 100):<17}$Minimum allowed wheel load",
         f"FZMAX                    = {limits.get('FZMAX', 740):<17}$Maximum allowed wheel load",
     ]
-    return lines
-
-
-def create_scaling_coefficients_section(data):
-    """Create the SCALING_COEFFICIENTS section."""
-    scaling = extract_section_data(data, 'scaling')
-    
-    lines = [
-        "$" + "-" * 64 + "scaling_coefficients",
-        "[SCALING_COEFFICIENTS]",
-    ]
-    
-    # Define the mapping of JSON keys to TIR parameter names
-    scaling_params = [
-        ('LFZ0', 'LFZO', 'Scale factor of nominal (rated) load'),
-        ('LCX', 'LCX', 'Scale factor of Fx shape factor'),
-        ('LMUX', 'LMUX', 'Scale factor of Fx peak friction coefficient'),
-        ('LEX', 'LEX', 'Scale factor of Fx curvature factor'),
-        ('LKX', 'LKX', 'Scale factor of Fx slip stiffness'),
-        ('LHX', 'LHX', 'Scale factor of Fx horizontal shift'),
-        ('LVX', 'LVX', 'Scale factor of Fx vertical shift'),
-        ('LCY', 'LCY', 'Scale factor of Fy shape factor'),
-        ('LMUY', 'LMUY', 'Scale factor of Fy peak friction coefficient'),
-        ('LEY', 'LEY', 'Scale factor of Fy curvature factor'),
-        ('LKY', 'LKY', 'Scale factor of Fy cornering stiffness'),
-        ('LHY', 'LHY', 'Scale factor of Fy horizontal shift'),
-        ('LVY', 'LVY', 'Scale factor of Fy vertical shift'),
-        ('LTR', 'LTR', 'Scale factor of Peak of pneumatic trail'),
-        ('LRES', 'LRES', 'Scale factor for offset of Mz residual torque'),
-        ('LXAL', 'LXAL', 'Scale factor of alpha influence on Fx'),
-        ('LYKA', 'LYKA', 'Scale factor of kappa influence on Fy'),
-        ('LVYKA', 'LVYKA', 'Scale factor of kappa induced Fy'),
-        ('LS', 'LS', 'Scale factor of Moment arm of Fx'),
-        ('LKYC', 'LKYC', 'Scale factor of Fy camber stiffness'),
-        ('LKZC', 'LKZC', 'Scale factor of Mz camber stiffness'),
-        ('LVMX', 'LVMX', 'Scale factor of Mx vertical shift'),
-        ('LMX', 'LMX', 'Scale factor of Mx overturning moment'),
-        ('LMY', 'LMY', 'Scale factor of rolling resistance torque'),
-        ('LMP', 'LMP', 'Scale factor of Mz parking torque'),
-        ('LCZ', 'LCZ', 'Scale factor radial tire stiffness'),
-        ('LMUV', 'LMUV', 'Scale factor with slip speed decaying friction'),
-    ]
-    
-    for json_key, tir_key, desc in scaling_params:
-        value = scaling.get(json_key, 1.0)
-        lines.append(format_tir_line(tir_key, value, desc))
-    
     return lines
 
 
@@ -452,7 +405,7 @@ def create_turnslip_coefficients_section():
         "PHYP2                    = 0.15               $Fy-alpha curve maximum lateral shift parameter",
         "PHYP3                    = 0                  $Fy-alpha curve maximum lateral shift varying with load parameter",
         "PHYP4                    = -4                 $Fy-alpha curve maximum lateral shift parameter",
-        "PECP1                    = 0.5                $Camber w.r.t. spin reduction factor parameter in camber stiffness",
+        "PECP1                    = 2.5                $Camber w.r.t. spin reduction factor parameter in camber stiffness",
         "PECP2                    = 0                  $Camber w.r.t. spin reduction factor varying with load parameter in camber stiffness",
         "QDTP1                    = 10                 $Pneumatic trail reduction factor due to turn slip parameter",
         "QCRP1                    = 0.2                $Turning moment at constant turning and zero forward speed parameter",
@@ -510,8 +463,6 @@ def convert_json_to_tir(json_path, output_path=None):
     all_lines.extend(create_inflation_pressure_range_section(data))
     all_lines.append("")
     all_lines.extend(create_slip_ranges_section(data))
-    all_lines.append("")
-    all_lines.extend(create_scaling_coefficients_section(data))
     all_lines.append("")
     all_lines.extend(create_longitudinal_coefficients_section(data))
     all_lines.append("")

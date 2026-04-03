@@ -188,7 +188,7 @@
     "PCFY2": 0.04559803459948562,
     "PCFY3": 0.9999999999999999
   },
-  "loaded_radius": {
+  "loaded_radius": { // MAJOR DIFF
     "VERTICAL_STIFFNESS": 1.0,
     "QRE0": 0.0,
     "QV1": 0.0,
