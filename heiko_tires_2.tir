@@ -4,7 +4,7 @@ FILE_VERSION             = 3.0
 FILE_FORMAT              = 'ASCII'
 !
 ! Converted from JSON format
-! Date: 02-Apr-2026 10:11:48
+! Date: 02-Apr-2026 19:15:25
 !
 ! Model name: Hoosier_Tire
 !
@@ -20,14 +20,10 @@ TIME                     = 'second'
 $----------------------------------------------------------------model
 [MODEL]
 FITTYP                   = 62                 $Magic Formula Version number
-TYRESIDE                 = 'RIGHT'
 LONGVL                   = 11.1             $Nominal speed
 PROPERTY_FILE_FORMAT     = 'MF-TYRE'
-FUNCTION_NAME            = ''
-N_TIRE_STATES            = 0
-USE_MODE                 = 14                 $Tire use mode switch (ADAMS only)
-PLYSTEER                 = 'true'             $Plysteer
-TURNSLIP                 = 'true'             $Turnslip
+PLYSTEER                 = 'false'             $Plysteer
+TURNSLIP                 = 'false'             $Turnslip
 VXLOW                    = 1                  $Lower boundary of slip calculation
 
 $----------------------------------------------------------------dimension
@@ -51,7 +47,7 @@ IYY                      = 0.736              $Tire polar moment of inertia
 
 $----------------------------------------------------------------vertical
 [VERTICAL]
-FNOMIN                   = 739.5              $Nominal wheel load
+FNOMIN                   = 890.0            $Nominal wheel load
 VERTICAL_STIFFNESS       = 1.0              $Tire vertical stiffness
 VERTICAL_DAMPING         = 50                 $Tire vertical damping
 MC_CONTOUR_A             = 0                  $Motorcycle contour ellipse A
@@ -73,7 +69,7 @@ Q_CAM3                   = 0.0              $Linear reduction of stiffness with 
 Q_FYS1                   = 0.0              $Constant camber and slip angle effect on vertical stiffness
 Q_FYS2                   = 0.0              $Linear camber and slip angle effect on vertical stiffness
 Q_FYS3                   = 0.0              $Quadratic camber and slip angle effect on vertical stiffness
-PFZ1                     = 0.7098             $Pressure effect on vertical stiffness
+PFZ1                     = 0.0              $Pressure effect on vertical stiffness
 BOTTOM_OFFST             = 0.01               $Distance to rim when bottoming starts to occur
 BOTTOM_STIFF             = 2000000            $Vertical stiffness of bottomed tire
 
@@ -105,12 +101,12 @@ PRESMAX                  = 103421.0         $Maximum valid tire inflation pressu
 
 $----------------------------------------------------------------long_slip_range
 [LONG_SLIP_RANGE]
-KPUMIN                   = 0                  $Minimum valid wheel slip
-KPUMAX                   = 0                  $Maximum valid wheel slip
+KPUMIN                   = -1.0             $Minimum valid wheel slip
+KPUMAX                   = 10.0             $Maximum valid wheel slip
 $----------------------------------------------------------------slip_angle_range
 [SLIP_ANGLE_RANGE]
-ALPMIN                   = -0.261799        $Minimum valid slip angle
-ALPMAX                   = 0.261799         $Maximum valid slip angle
+ALPMIN                   = -1.57079633      $Minimum valid slip angle
+ALPMAX                   = 1.57079633       $Maximum valid slip angle
 $----------------------------------------------------------------inclination_angle_range
 [INCLINATION_ANGLE_RANGE]
 CAMMIN                   = -0.08726         $Minimum valid camber angle
@@ -231,6 +227,7 @@ QBZ2                          = -1.78557
 QBZ3                          = 0.0000000000e+00    
 QBZ4                          = 0.0000000000e+00    
 QBZ5                          = -1                  
+QBZ6                          = 0                   $MISSING VALUE
 QBZ9                          = 6.54673             
 QBZ10                         = 0.0000000000e+00    
 QCZ1                          = 1.1                 
@@ -273,6 +270,9 @@ QSX8                          = -0.1
 QSX9                          = 0.2                 
 QSX10                         = 0.1                 
 QSX11                         = 3                   
+QSX12                         = 0                   $MISSING VALUE
+QSX13                         = 0                   $MISSING VALUE
+QSX14                         = 0                   $MISSING VALUE
 PPMX1                         = 0.0000000000e+00    
 
 $----------------------------------------------------------------rolling_coefficients
