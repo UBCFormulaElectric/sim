@@ -3,7 +3,7 @@
 
 std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, const ConeColor c) {
     size_t start = 0;
-    std::unordered_set<size_t> unvisited_cones { };
+    std::unordered_set<size_t> unvisited_cones {};
     for (size_t i = 0; i < cones.size(); ++i) {
         if (cones[i].c == c) {
             start = i;
@@ -54,7 +54,7 @@ void compute_path(const std::vector<Cone>& cones) {
     cdt.insertVertices(cones.begin(), cones.end(), get_cone_x, get_cone_y);
 
     // calculate boundary edges and insert them into the triangulation
-    std::vector<CDT::Edge> edges { };
+    std::vector<CDT::Edge> edges {};
     const std::vector<CDT::VertInd> blue_boundary = calculate_boundary(cones, ConeColor::BLUE);
     for (size_t i = 0; i < blue_boundary.size(); ++i) {
         edges.emplace_back(blue_boundary[i], blue_boundary[(i + 1) % blue_boundary.size()]);
@@ -73,7 +73,7 @@ void compute_path(const std::vector<Cone>& cones) {
     }
     assert(offline_inner_edges.size() + offline_boundary_edges.size() == original_num_edges);
 
-    center_points = { };
+    center_points = {};
     for (const auto e : offline_inner_edges) {
         // get center point of e
         const Cone& c1 = cones[e.v1()];
@@ -87,7 +87,7 @@ const CDT::EdgeUSet& get_offline_edges() {
     return offline_inner_edges;
 }
 const CDT::EdgeUSet& get_boundary_edges() {
-    return offline_inner_edges;
+    return offline_boundary_edges;
 }
 const std::vector<Cone>& get_center_points() {
     return center_points;
@@ -106,7 +106,8 @@ void update_cone_positions(const std::vector<Cone>& cones) {
 
     ScopeTimer s { "online triangulation timer" };
     const auto start = std::next(cones.begin(), static_cast<std::vector<Cone>::difference_type>(seen_cones));
-    cdt.insertVertices(start, cones.end(), [](const Cone& c) { return c.x; }, [](const Cone& c) { return c.y; });
+    cdt.insertVertices(
+        start, cones.end(), [](const Cone& c) { return c.x; }, [](const Cone& c) { return c.y; });
     CDT::Triangulation<double> cpy = cdt;
     cpy.eraseSuperTriangle();
     edges = CDT::extractEdgesFromTriangles(cpy.triangles);
