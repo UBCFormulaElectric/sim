@@ -1,7 +1,7 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor, get_offline_edges, get_center_line, get_center_points, get_boundary_edges
+from Controller import VehicleState, Cone, ConeColor, get_offline_edges, get_center_line, get_center_points, get_boundary_edges, project
 from math import ceil, degrees
 import numpy as np
 
@@ -120,7 +120,7 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	# center_points = get_center_points()
 	# center_line = get_center_line()
 	# for i in range(len(center_line)):
-	# 	v1, v2 = center_points[center_line[i]], center_points[center_line[(i+1) % len(center_line)]]
+	# 	v1, v2 = center_points[center_line[i]], center_points[center_line[(i+1) % len(center_line)]] # returns cone objects
 	# 	default_colour = "#676767"
 	# 	pygame.draw.line(screen, default_colour,
 	# 		transform(v1.x, v1.y, vehicle_state),

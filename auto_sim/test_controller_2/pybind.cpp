@@ -2,6 +2,7 @@
 #include <pybind11/stl.h>
 
 #include "controller.hpp"
+#include "path.hpp"
 #include "sim.hpp"
 #include "types.hpp"
 
@@ -59,6 +60,9 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     )pbdoc");
     m.def("get_center_line", get_center_line, py::return_value_policy::reference, R"pbdoc())
         Get the center line calculated from compute_path()
+    )pbdoc");
+    m.def("project", &project, R"pbdoc())
+        Project a point onto the center line
     )pbdoc");
 
     // online path caclulations
