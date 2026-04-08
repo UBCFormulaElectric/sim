@@ -37,6 +37,6 @@ Location spline_t(double t);
 inline CDT::EdgeUSet offline_boundary_edges;
 inline CDT::EdgeUSet offline_inner_edges;
 inline std::vector<Cone> center_points;
-inline std::vector<CDT::VertInd> center_line_idxs;
+// inline std::vector<CDT::VertInd> center_line_idxs;
 inline alglib::spline1dinterpolant x_spline, y_spline;
 inline double center_line_length;

@@ -36,15 +36,11 @@ vehicle_state: VehicleState = VehicleState()
 # vehicle_state.omega = -0.2
 
 def handle_key(key: int, state: VehicleState):
-	match key:
-		case pygame.K_d:
-			state.y -= 1
-		case pygame.K_a:
-			state.y += 1
-		case pygame.K_w:
-			state.x += 1
-		case pygame.K_s:
-			state.x -= 1
+    match key:
+        case pygame.K_d: state.y -= 1
+        case pygame.K_a: state.y += 1
+        case pygame.K_w: state.x += 1
+        case pygame.K_s: state.x -= 1
 
 ran = False
 def simulate_cone_detection(state: VehicleState):

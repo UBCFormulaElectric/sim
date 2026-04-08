@@ -1,9 +1,12 @@
+from typing import Tuple
+
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor, spline_t, get_center_line_length, project, project_seeded
+from Controller import VehicleState, Cone, ConeColor, spline_t, project, get_center_line_length, get_center_points
 from math import ceil, degrees
 import numpy as np
+from colorsys import hsv_to_rgb
 
 PIXELS_PER_M = 	20.0
 w: int
@@ -71,6 +74,25 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), sp
 
 	screen.blit(screen_grid, (0, 0))
 
+
+# def create_spline_surface():
+# 	surf = pygame.Surface((77 * PIXELS_PER_M, 47 * PIXELS_PER_M), pygame.SRCALPHA)
+# 	length = get_center_line_length()
+# 	for x in range(int(77 * PIXELS_PER_M)):
+# 		for y in range(int(47 * PIXELS_PER_M)):
+# 			k = hsv_to_rgb(project(22-x/PIXELS_PER_M, -39+y/PIXELS_PER_M)/length, 1, 1)
+# 			surf.set_at((x, y), (int(k[0]*255), int(k[1]*255), int(k[2]*255)))
+# 	return surf
+
+# spline_surface = None
+# def drawSplintSurface(screen: pygame.Surface, vehicle_state: VehicleState):
+# 	global spline_surface	
+# 	if spline_surface is None:
+# 		spline_surface = create_spline_surface()
+# 	rotated_surf: pygame.Surface = pygame.transform.rotate(spline_surface, degrees(-vehicle_state.theta - np.pi/2))
+# 	screen.blit(rotated_surf, rotated_surf.get_rect(center=transform(-16.5, -15.5, vehicle_state)))
+	
+
 def int_to_color(value: ConeColor) -> str:
 	match value:
 		case ConeColor.BLUE:
@@ -80,7 +102,6 @@ def int_to_color(value: ConeColor) -> str:
 		case _:
 			return "white"
 
-# boundary = None
 at_t = None
 def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface):
 	global w, h, at_t
@@ -88,13 +109,11 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 
 	# grid for context
 	drawGrid(screen, vehicle_state)
+	# drawSplintSurface(screen, vehicle_state)
 
-	p = transform(0, 0, vehicle_state)
-	pygame.draw.circle(screen, "white",p , 5)
+	# pygame.draw.circle(screen, "white", transform(0, 0, vehicle_state), 5)
 
-	# if boundary is None:
-	# 	boundary = calculate_boundary(cones, ConeColor.YELLOW)
-
+	# DRAW TRIANGULATION
 	# for edge in get_offline_edges():
 	# 	v1, v2 = cones[edge.v1()], cones[edge.v2()]
 	# 	default_colour = "#676767"
@@ -102,7 +121,6 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	# 		transform(v1.x, v1.y, vehicle_state),
 	# 		transform(v2.x, v2.y, vehicle_state), 2
 	# 	)
-
 	# for edge in get_boundary_edges():
 	# 	v1, v2 = cones[edge.v1()], cones[edge.v2()]
 	# 	default_colour = "#FF0000"
@@ -117,30 +135,28 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	# 		transform(v2.x, v2.y, vehicle_state), 1
 	# 	)
 
+	# DRAW CENTER LINE
 	# center_points = get_center_points()
-	# center_line = get_center_line()
-	# for i in range(len(center_line)):
-	# 	v1, v2 = center_points[center_line[i]], center_points[center_line[(i+1) % len(center_line)]] # returns cone objects
+	# for i in range(len(center_points)):
+	# 	v1, v2 = center_points[i], center_points[(i+1) % len(center_points)] # returns cone objects
 	# 	default_colour = "#676767"
 	# 	pygame.draw.line(screen, default_colour,
 	# 		transform(v1.x, v1.y, vehicle_state),
 	# 		transform(v2.x, v2.y, vehicle_state), 2
 	# 	)
 
-	# if at_t is None:
-	# else:
-	# 	at_t = project_seeded(vehicle_state.x, vehicle_state.y, at_t)
-	at_t = project(vehicle_state.x, vehicle_state.y)
-	x = spline_t(at_t)
-	pygame.draw.circle(screen, "red", transform(x.x, x.y, vehicle_state), 5)
+	# DRAW PATH PROJECTION
+	# at_t = project(vehicle_state.x, vehicle_state.y)
+	# x = spline_t(at_t)
+	# pygame.draw.circle(screen, "red", transform(x.x, x.y, vehicle_state), 5)
 
 	# DRAW SPLINE
-	# steps = 10
+	# steps = 100
 	# dt = get_center_line_length() / steps
 	# for t in range(steps):
 	# 	x1 = spline_t(t * dt)
 	# 	x2= spline_t((t + 1) * dt)
-	# 	pygame.draw.line(screen, "green",
+	# 	pygame.draw.line(screen, "#676767",
 	# 			   transform(x1.x, x1.y, vehicle_state),
 	# 			   transform(x2.x, x2.y, vehicle_state), 2)
 

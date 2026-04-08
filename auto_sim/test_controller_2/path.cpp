@@ -78,45 +78,50 @@ void compute_path_from_percepted_cones() {
     assert(offline_inner_edges.size() + offline_boundary_edges.size() == original_num_edges);
 
     // construct center line
-    center_points = { };
+    std::vector<Cone> _centers = { };
     for (const auto e : offline_inner_edges) {
         // get center point of e
         const Cone& c1 = cones[e.v1()];
         const Cone& c2 = cones[e.v2()];
-        center_points.emplace_back((c1.x + c2.x) / 2, (c1.y + c2.y) / 2, ConeColor::CENTER);
+        _centers.emplace_back((c1.x + c2.x) / 2, (c1.y + c2.y) / 2, ConeColor::CENTER);
     }
-    center_line_idxs = calculate_boundary(center_points, ConeColor::CENTER);
+    const std::vector<CDT::VertInd> _center_idxs = calculate_boundary(_centers, ConeColor::CENTER);
+    center_points.clear();
+    center_points.reserve(_center_idxs.size());
+    for (const size_t i : _center_idxs) {
+        center_points.push_back(_centers[i]);
+    }
 
     // center line parameterization prefix
     alglib::real_1d_array center_line_len_prefix;
-    center_line_len_prefix.setlength(center_line_idxs.size() + 1);
+    center_line_len_prefix.setlength(center_points.size() + 1);
     center_line_len_prefix[0] = 0;
-    for (size_t i = 1; i <= center_line_idxs.size(); ++i) {
-        const Cone& c1 = center_points[center_line_idxs[i - 1]];
-        const Cone& c2 = center_points[center_line_idxs[i % center_line_idxs.size()]];
+    for (size_t i = 1; i <= center_points.size(); ++i) {
+        const Cone& c1 = center_points[i - 1];
+        const Cone& c2 = center_points[i % center_points.size()];
         center_line_len_prefix[i] = center_line_len_prefix[i - 1] + std::hypot(c1.x - c2.x, c1.y - c2.y);
     }
-    center_line_length = center_line_len_prefix[center_line_idxs.size()];
+    center_line_length = center_line_len_prefix[center_points.size()];
 
     // draw a spline between all the center points
     alglib::real_1d_array xs, ys;
-    xs.setlength(center_line_idxs.size() + 1);
-    ys.setlength(center_line_idxs.size() + 1);
-    for (size_t i = 0; i < center_line_idxs.size(); ++i) {
-        const Cone& c = center_points[center_line_idxs[i]];
+    xs.setlength(center_points.size() + 1);
+    ys.setlength(center_points.size() + 1);
+    for (size_t i = 0; i < center_points.size(); ++i) {
+        const Cone& c = center_points[i];
         xs[i] = c.x;
         ys[i] = c.y;
     }
     // cycle around
-    xs[center_line_idxs.size()] = center_points[center_line_idxs[0]].x;
-    ys[center_line_idxs.size()] = center_points[center_line_idxs[0]].y;
+    xs[center_points.size()] = center_points[0].x;
+    ys[center_points.size()] = center_points[0].y;
 
     alglib::spline1dbuildcubic(center_line_len_prefix, xs, x_spline);
     alglib::spline1dbuildcubic(center_line_len_prefix, ys, y_spline);
 }
 
 double project(const double x, const double y) {
-    const ScopeTimer s { "project timer" };
+    // const ScopeTimer s { "project timer" };
     static constexpr uint32_t samples = 50;
     static constexpr double eps = 0;
 
@@ -156,6 +161,7 @@ double project(const double x0, const double y0, double t) {
             return t;
         }
     }
+    std::cout << "project did not converge at x=" << x0 << "and y=" << y0 << std::endl;
     throw std::exception("project did not converge");
 }
 

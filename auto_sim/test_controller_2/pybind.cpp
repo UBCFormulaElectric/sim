@@ -19,9 +19,6 @@ static CDT::EdgeUSet& get_boundary_edges() {
 static std::vector<Cone>& get_center_points() {
     return center_points;
 }
-static std::vector<CDT::VertInd>& get_center_line() {
-    return center_line_idxs;
-}
 static double get_center_line_length() {
     return center_line_length;
 }
@@ -78,9 +75,6 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     )pbdoc");
     m.def("get_center_points", &get_center_points, py::return_value_policy::reference, R"pbdoc(
         Get the center points calculated from compute_path()
-    )pbdoc");
-    m.def("get_center_line", &get_center_line, py::return_value_policy::reference, R"pbdoc(
-        Get the center line calculated from compute_path()
     )pbdoc");
     m.def("get_center_line_length", &get_center_line_length, R"pbdoc(
         Get the length of the center line calculated from compute_path()
