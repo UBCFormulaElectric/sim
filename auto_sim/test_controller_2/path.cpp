@@ -39,11 +39,9 @@ static std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& con
     return path;
 }
 
-static float mod(const float a, const float b) {
-    return a - b * std::floor(a / b);
-}
 static double mod(const double a, const double b) {
-    return a - b * std::floor(a / b);
+    const double result = std::fmod(a, b);
+    return result >= 0 ? result : result + b;
 }
 
 void compute_path_from_percepted_cones() {
@@ -92,15 +90,16 @@ void compute_path_from_percepted_cones() {
     // center line parameterization prefix
     alglib::real_1d_array center_line_len_prefix;
     center_line_len_prefix.setlength(center_line_idxs.size() + 1);
+    center_line_len_prefix[0] = 0;
     for (size_t i = 1; i <= center_line_idxs.size(); ++i) {
         const Cone& c1 = center_points[center_line_idxs[i - 1]];
-        const Cone& c2 = center_points[center_line_idxs[i]];
+        const Cone& c2 = center_points[center_line_idxs[i % center_line_idxs.size()]];
         center_line_len_prefix[i] = center_line_len_prefix[i - 1] + std::hypot(c1.x - c2.x, c1.y - c2.y);
     }
     center_line_length = center_line_len_prefix[center_line_idxs.size()];
 
     // draw a spline between all the center points
-    alglib::real_1d_array xs, ys { };
+    alglib::real_1d_array xs, ys;
     xs.setlength(center_line_idxs.size() + 1);
     ys.setlength(center_line_idxs.size() + 1);
     for (size_t i = 0; i < center_line_idxs.size(); ++i) {
@@ -112,46 +111,54 @@ void compute_path_from_percepted_cones() {
     xs[center_line_idxs.size()] = center_points[center_line_idxs[0]].x;
     ys[center_line_idxs.size()] = center_points[center_line_idxs[0]].y;
 
-    alglib::spline1dbuildcubic(xs, center_line_len_prefix, x_spline);
-    alglib::spline1dbuildcubic(ys, center_line_len_prefix, y_spline);
+    alglib::spline1dbuildcubic(center_line_len_prefix, xs, x_spline);
+    alglib::spline1dbuildcubic(center_line_len_prefix, ys, y_spline);
 }
 
 double project(const double x, const double y) {
-    static constexpr uint32_t samples = 10;
+    const ScopeTimer s { "project timer" };
+    static constexpr uint32_t samples = 50;
+    static constexpr double eps = 0;
+
     double best_dist = std::numeric_limits<double>::max(), best_t = 0;
-    for (double at_t = 0; at_t <= center_line_length; at_t += center_line_length / samples) { // NOLINT(*-flp30-c)
-        if (const double dist = std::hypot(
-                alglib::spline1dcalc(x_spline, at_t) - x,
-                alglib::spline1dcalc(y_spline, at_t) - y);
-            dist < best_dist) {
-            best_t = project(x, y, at_t);
-            best_dist = std::hypot(
-                alglib::spline1dcalc(x_spline, best_t) - x,
-                alglib::spline1dcalc(y_spline, best_t) - y);
+    const double step_size = center_line_length / samples - eps;
+    assert(step_size > 0);
+    for (double at_t = eps; at_t < center_line_length; at_t += step_size) { // NOLINT(*-flp30-c)
+        const double t = project(x, y, at_t);
+        const double d = std::hypot(
+            alglib::spline1dcalc(x_spline, t) - x,
+            alglib::spline1dcalc(y_spline, t) - y);
+        if (d < best_dist) {
+            best_dist = d;
+            best_t = t;
         }
     }
     return best_t;
 }
-double project(const double x, const double y, double at_t) {
+double project(const double x0, const double y0, double t) {
     // just good to double check
-    assert(0 <= at_t);
-    assert(at_t <= center_line_length);
-
-    double dd;
-    double at_x, at_dx;
-    alglib::spline1ddiff(x_spline, at_t, at_x, at_dx, dd);
-    double at_y, at_dy;
-    alglib::spline1ddiff(y_spline, at_t, at_y, at_dy, dd);
+    assert(0 <= t);
+    assert(t <= center_line_length);
 
     // newton stepping ????
     for (uint32_t i = 0; i < 20; i++) {
-        const double f_prime = 2 * (at_x * at_dy + at_y * at_dx) - (x * at_dy + y * at_dx);
-        const double f = (at_x * at_dy + at_y * at_dx) - (x * at_dy + y * at_dx);
+        double l_x, l_dx, l_ddx;
+        alglib::spline1ddiff(x_spline, t, l_x, l_dx, l_ddx);
+        double l_y, l_dy, l_ddy;
+        alglib::spline1ddiff(y_spline, t, l_y, l_dy, l_ddy);
+        // ||l'(t)||_2 + (l(t) - x) dot l''(t)
+        const double f_prime = (l_dx * l_dx + l_dy * l_dy) + ((l_x - x0) * l_ddx + (l_y - y0) * l_ddy);
+        // (l(t) - x) dot l'(t)
+        const double f = (l_x - x0) * l_dx + (l_y - y0) * l_dy;
         const double step = f / f_prime;
-        at_t -= step;
+        t = mod(t - step, center_line_length);
         if (step < 1e-6) {
-            return at_t;
+            return t;
         }
     }
-    throw std::runtime_error("project did not converge");
+    throw std::exception("project did not converge");
+}
+
+Location spline_t(const double t) {
+    return { alglib::spline1dcalc(x_spline, t), alglib::spline1dcalc(y_spline, t) };
 }

@@ -12,12 +12,12 @@
 void compute_path_from_percepted_cones();
 /**
  * Note this overload is MUCH faster than without at_t
- * @param x x position
- * @param y y position
- * @param at_t please use this to seed the optimization algorithm
+ * @param x0 x position
+ * @param y0 y position
+ * @param t please use this to seed the optimization algorithm
  * @return t s.t. the point on the center line that is closest to (x, y) in terms of Euclidean distance
  */
-double project(double x, double y, double at_t = 0);
+double project(double x0, double y0, double t);
 /**
  * this variant tries a bunch of values of at_t, between [0, center_line_length], and returns the best one.
  * this is more expensive but can be more robust if the center line is very curvy and the optimization algorithm gets stuck in a local minimum.
@@ -26,6 +26,12 @@ double project(double x, double y, double at_t = 0);
  * @return
  */
 double project(double x, double y);
+
+struct Location {
+    double x;
+    double y;
+};
+Location spline_t(double t);
 
 // for debugging purposes only
 inline CDT::EdgeUSet offline_boundary_edges;

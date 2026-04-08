@@ -4,11 +4,21 @@ from setuptools import setup
 
 __version__ = "0.0.1"
 
+# get all sources in the build/_deps/alglib-src/alglib/src directory
+import os
+
+alglib_srcs = []
+for root, dirs, files in os.walk("build/_deps/alglib-src/src"):
+    for file in files:
+        if file.endswith(".cpp"):
+            alglib_srcs.append(os.path.join(root, file))
+print(alglib_srcs)
+
 ext_modules = [
     Pybind11Extension(
         "Controller",
-        ["pybind.cpp", "sim.cpp", "controller.cpp", "path.cpp", "perception.cpp"],
-        include_dirs=[".", "build/_deps/cdt-src/CDT/include"],
+        ["pybind.cpp", "sim.cpp", "controller.cpp", "path.cpp", "perception.cpp"] + alglib_srcs,
+        include_dirs=[".", "build/_deps/cdt-src/CDT/include", "build/_deps/alglib-src/src"],
         language="c++",
     ),
 ]

@@ -47,7 +47,7 @@ CPMAddPackage(
 add_library(alglib_interface INTERFACE)
 target_include_directories(alglib_interface INTERFACE ${alglib_SOURCE_DIR}/src)
 
-file(GLOB SOURCES *.cpp)
+file(GLOB SOURCES *.cpp ${alglib_SOURCE_DIR}/src/*.cpp)
 pybind11_add_module(controller ${SOURCES})
 target_include_directories(controller PRIVATE ${CDT_SOURCE_DIR}/CDT/include)
 target_link_libraries(controller PRIVATE eigen_interface alglib_interface)

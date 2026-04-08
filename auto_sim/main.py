@@ -1,5 +1,5 @@
 import pygame
-from Controller import compute, sim_step, Cone, ConeColor, VehicleState, compute_path
+from Controller import compute, sim_step, Cone, ConeColor, VehicleState, mock_perception, compute_path
 from render import init, render_world
 import ctypes
 import platform
@@ -50,7 +50,8 @@ ran = False
 def simulate_cone_detection(state: VehicleState):
     global ran
     if not ran:
-        compute_path(CONE_POSITIONS)
+        mock_perception(CONE_POSITIONS)
+        compute_path()
         ran = True
     return CONE_POSITIONS
 

@@ -1,7 +1,7 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor, get_offline_edges, get_center_line, get_center_points, get_boundary_edges, project
+from Controller import VehicleState, Cone, ConeColor, spline_t, get_center_line_length, project, project_seeded
 from math import ceil, degrees
 import numpy as np
 
@@ -81,9 +81,9 @@ def int_to_color(value: ConeColor) -> str:
 			return "white"
 
 # boundary = None
-
+at_t = None
 def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface):
-	global w, h
+	global w, h, at_t
 	w, h = screen.get_width(), screen.get_height()
 
 	# grid for context
@@ -126,6 +126,23 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	# 		transform(v1.x, v1.y, vehicle_state),
 	# 		transform(v2.x, v2.y, vehicle_state), 2
 	# 	)
+
+	# if at_t is None:
+	# else:
+	# 	at_t = project_seeded(vehicle_state.x, vehicle_state.y, at_t)
+	at_t = project(vehicle_state.x, vehicle_state.y)
+	x = spline_t(at_t)
+	pygame.draw.circle(screen, "red", transform(x.x, x.y, vehicle_state), 5)
+
+	# DRAW SPLINE
+	# steps = 10
+	# dt = get_center_line_length() / steps
+	# for t in range(steps):
+	# 	x1 = spline_t(t * dt)
+	# 	x2= spline_t((t + 1) * dt)
+	# 	pygame.draw.line(screen, "green",
+	# 			   transform(x1.x, x1.y, vehicle_state),
+	# 			   transform(x2.x, x2.y, vehicle_state), 2)
 
 	for cone in cones:
 		pygame.draw.circle(
