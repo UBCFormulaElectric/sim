@@ -7,7 +7,7 @@ __version__ = "0.0.1"
 ext_modules = [
     Pybind11Extension(
         "Controller",
-        ["pybind.cpp", "sim.cpp", "controller.cpp", "path.cpp"],
+        ["pybind.cpp", "sim.cpp", "controller.cpp", "path.cpp", "perception.cpp"],
         include_dirs=[".", "build/_deps/cdt-src/CDT/include"],
         language="c++",
     ),

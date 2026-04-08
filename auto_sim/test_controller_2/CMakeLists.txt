@@ -24,7 +24,30 @@ CPMAddPackage(
         GIT_TAG 1.4.4
         DOWNLOAD_ONLY TRUE
 )
+CPMAddPackage(
+        NAME EIGEN
+        GIT_REPOSITORY https://gitlab.com/libeigen/eigen
+        GIT_TAG 3147391d946bb4b6c68edd901f2add6ac1f31f8c
+        GIT_SHALLOW TRUE
+        DOWNLOAD_ONLY TRUE
+)
+set(EIGEN_INCLUDE_DIRS ${EIGEN_SOURCE_DIR})
+add_library(eigen_interface INTERFACE)
+target_include_directories(eigen_interface SYSTEM INTERFACE ${EIGEN_INCLUDE_DIRS})
+target_compile_definitions(eigen_interface INTERFACE
+        EIGEN_STACK_ALLOCATION_LIMIT=0
+        EIGEN_MAX_STATIC_ALIGN_BYTES=0
+)
+
+CPMAddPackage(
+        NAME alglib
+        URL https://www.alglib.net/translator/re/alglib-4.07.0.cpp.gpl.zip
+        DOWNLOAD_ONLY TRUE
+)
+add_library(alglib_interface INTERFACE)
+target_include_directories(alglib_interface INTERFACE ${alglib_SOURCE_DIR}/src)
 
 file(GLOB SOURCES *.cpp)
 pybind11_add_module(controller ${SOURCES})
 target_include_directories(controller PRIVATE ${CDT_SOURCE_DIR}/CDT/include)
+target_link_libraries(controller PRIVATE eigen_interface alglib_interface)

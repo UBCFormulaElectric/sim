@@ -1,9 +1,11 @@
 #include "path.hpp"
+#include "perception.hpp"
 #include "scopetimer.hpp"
+#include <unordered_set>
 
-std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, const ConeColor c) {
+static std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, const ConeColor c) {
     size_t start = 0;
-    std::unordered_set<size_t> unvisited_cones {};
+    std::unordered_set<size_t> unvisited_cones { };
     for (size_t i = 0; i < cones.size(); ++i) {
         if (cones[i].c == c) {
             start = i;
@@ -37,23 +39,26 @@ std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, con
     return path;
 }
 
-static CDT::EdgeUSet offline_inner_edges;
-static CDT::EdgeUSet offline_boundary_edges;
-static std::vector<Cone> center_points;
-static std::vector<CDT::VertInd> center_line;
-static double get_cone_x(const Cone& c) {
-    return c.x;
+static float mod(const float a, const float b) {
+    return a - b * std::floor(a / b);
 }
-static double get_cone_y(const Cone& c) {
-    return c.y;
+static double mod(const double a, const double b) {
+    return a - b * std::floor(a / b);
 }
-void compute_path(const std::vector<Cone>& cones) {
-    ScopeTimer s { "offline triangulation timer" };
-    CDT::Triangulation<double> cdt;
-    cdt.insertVertices(cones.begin(), cones.end(), get_cone_x, get_cone_y);
+
+void compute_path_from_percepted_cones() {
+    ScopeTimer s { "compute_path timer" };
+    static CDT::Triangulation<double> cdt_cache;
+    static size_t seen_cones = 0;
+    if (seen_cones == cones.size()) {
+        return;
+    }
+    const auto start = std::next(cones.begin(), static_cast<std::vector<Cone>::difference_type>(seen_cones));
+    cdt_cache.insertVertices(
+        start, cones.end(), [](const Cone& c) { return c.x; }, [](const Cone& c) { return c.y; });
 
     // calculate boundary edges and insert them into the triangulation
-    std::vector<CDT::Edge> edges {};
+    std::vector<CDT::Edge> edges { };
     const std::vector<CDT::VertInd> blue_boundary = calculate_boundary(cones, ConeColor::BLUE);
     for (size_t i = 0; i < blue_boundary.size(); ++i) {
         edges.emplace_back(blue_boundary[i], blue_boundary[(i + 1) % blue_boundary.size()]);
@@ -62,6 +67,8 @@ void compute_path(const std::vector<Cone>& cones) {
     for (size_t i = 0; i < yellow_boundary.size(); ++i) {
         edges.emplace_back(yellow_boundary[i], yellow_boundary[(i + 1) % yellow_boundary.size()]);
     }
+    // compute corresponding triangulation
+    CDT::Triangulation<double> cdt = cdt_cache;
     cdt.insertEdges(edges);
     cdt.eraseOuterTrianglesAndHoles();
     offline_boundary_edges = cdt.fixedEdges;
@@ -72,60 +79,79 @@ void compute_path(const std::vector<Cone>& cones) {
     }
     assert(offline_inner_edges.size() + offline_boundary_edges.size() == original_num_edges);
 
-    center_points = {};
+    // construct center line
+    center_points = { };
     for (const auto e : offline_inner_edges) {
         // get center point of e
         const Cone& c1 = cones[e.v1()];
         const Cone& c2 = cones[e.v2()];
         center_points.emplace_back((c1.x + c2.x) / 2, (c1.y + c2.y) / 2, ConeColor::CENTER);
     }
-    center_line = calculate_boundary(center_points, ConeColor::CENTER);
-}
+    center_line_idxs = calculate_boundary(center_points, ConeColor::CENTER);
 
-const CDT::EdgeUSet& get_offline_edges() {
-    return offline_inner_edges;
-}
-const CDT::EdgeUSet& get_boundary_edges() {
-    return offline_boundary_edges;
-}
-const std::vector<Cone>& get_center_points() {
-    return center_points;
-}
-const std::vector<CDT::VertInd>& get_center_line() {
-    return center_line;
-}
-
-static CDT::EdgeUSet edges;
-void update_cone_positions(const std::vector<Cone>& cones) {
-    static CDT::Triangulation<double> cdt;
-    static size_t seen_cones = 0;
-    if (seen_cones == cones.size()) {
-        return;
+    // center line parameterization prefix
+    alglib::real_1d_array center_line_len_prefix;
+    center_line_len_prefix.setlength(center_line_idxs.size() + 1);
+    for (size_t i = 1; i <= center_line_idxs.size(); ++i) {
+        const Cone& c1 = center_points[center_line_idxs[i - 1]];
+        const Cone& c2 = center_points[center_line_idxs[i]];
+        center_line_len_prefix[i] = center_line_len_prefix[i - 1] + std::hypot(c1.x - c2.x, c1.y - c2.y);
     }
+    center_line_length = center_line_len_prefix[center_line_idxs.size()];
 
-    ScopeTimer s { "online triangulation timer" };
-    const auto start = std::next(cones.begin(), static_cast<std::vector<Cone>::difference_type>(seen_cones));
-    cdt.insertVertices(
-        start, cones.end(), [](const Cone& c) { return c.x; }, [](const Cone& c) { return c.y; });
-    CDT::Triangulation<double> cpy = cdt;
-    cpy.eraseSuperTriangle();
-    edges = CDT::extractEdgesFromTriangles(cpy.triangles);
+    // draw a spline between all the center points
+    alglib::real_1d_array xs, ys { };
+    xs.setlength(center_line_idxs.size() + 1);
+    ys.setlength(center_line_idxs.size() + 1);
+    for (size_t i = 0; i < center_line_idxs.size(); ++i) {
+        const Cone& c = center_points[center_line_idxs[i]];
+        xs[i] = c.x;
+        ys[i] = c.y;
+    }
+    // cycle around
+    xs[center_line_idxs.size()] = center_points[center_line_idxs[0]].x;
+    ys[center_line_idxs.size()] = center_points[center_line_idxs[0]].y;
+
+    alglib::spline1dbuildcubic(xs, center_line_len_prefix, x_spline);
+    alglib::spline1dbuildcubic(ys, center_line_len_prefix, y_spline);
 }
 
-const CDT::EdgeUSet& get_triangulation() {
-    return edges;
+double project(const double x, const double y) {
+    static constexpr uint32_t samples = 10;
+    double best_dist = std::numeric_limits<double>::max(), best_t = 0;
+    for (double at_t = 0; at_t <= center_line_length; at_t += center_line_length / samples) { // NOLINT(*-flp30-c)
+        if (const double dist = std::hypot(
+                alglib::spline1dcalc(x_spline, at_t) - x,
+                alglib::spline1dcalc(y_spline, at_t) - y);
+            dist < best_dist) {
+            best_t = project(x, y, at_t);
+            best_dist = std::hypot(
+                alglib::spline1dcalc(x_spline, best_t) - x,
+                alglib::spline1dcalc(y_spline, best_t) - y);
+        }
+    }
+    return best_t;
 }
+double project(const double x, const double y, double at_t) {
+    // just good to double check
+    assert(0 <= at_t);
+    assert(at_t <= center_line_length);
 
-/**
- * Projects point at (x,y) to the line defined by c0 and c1.
- * @param x Point to project x coordinate
- * @param y Point to project y coordinate
- * @param c0 First point defining the line to project onto
- * @param c1 Second point defining the line to project onto
- * @return the parameter t such that the projected point is at (1-t)*c0 + t*c1
- */
-double project(const double x, const double y, const Cone& c0, const Cone& c1) {
-    const double x_min_x0 = x - c0.x;
-    const double y_min_y0 = y - c0.y;
-    return x_min_x0 * (c1.x - c0.x) + y_min_y0 * (c1.y - c0.y);
+    double dd;
+    double at_x, at_dx;
+    alglib::spline1ddiff(x_spline, at_t, at_x, at_dx, dd);
+    double at_y, at_dy;
+    alglib::spline1ddiff(y_spline, at_t, at_y, at_dy, dd);
+
+    // newton stepping ????
+    for (uint32_t i = 0; i < 20; i++) {
+        const double f_prime = 2 * (at_x * at_dy + at_y * at_dx) - (x * at_dy + y * at_dx);
+        const double f = (at_x * at_dy + at_y * at_dx) - (x * at_dy + y * at_dx);
+        const double step = f / f_prime;
+        at_t -= step;
+        if (step < 1e-6) {
+            return at_t;
+        }
+    }
+    throw std::runtime_error("project did not converge");
 }
