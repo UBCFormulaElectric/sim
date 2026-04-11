@@ -1,12 +1,10 @@
-from typing import Tuple
 
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor, spline_t, project, get_center_line_length, get_center_points
+from Controller import VehicleState, Cone, ConeColor, get_center_points, project, spline_t
 from math import ceil, degrees
 import numpy as np
-from colorsys import hsv_to_rgb
 
 PIXELS_PER_M = 	20.0
 w: int
@@ -137,6 +135,8 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 
 	# DRAW CENTER LINE
 	# center_points = get_center_points()
+	# for point in center_points:
+	# 	pygame.draw.circle(screen, "white", transform(point.x, point.y, vehicle_state), 2)
 	# for i in range(len(center_points)):
 	# 	v1, v2 = center_points[i], center_points[(i+1) % len(center_points)] # returns cone objects
 	# 	default_colour = "#676767"
