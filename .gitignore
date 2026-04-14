@@ -5,3 +5,5 @@ slprj
 *.autosave
 testing_data
 *.original
+*.err
+BUILD_OUTPUT
