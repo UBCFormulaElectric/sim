@@ -1,4 +1,5 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 4.1.1)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 23)
 project(high_level_controller)
 
@@ -24,12 +25,14 @@ CPMAddPackage(
         GIT_TAG 1.4.4
         DOWNLOAD_ONLY TRUE
 )
+add_library(cdt_interface INTERFACE)
+target_include_directories(cdt_interface SYSTEM INTERFACE ${CDT_SOURCE_DIR}/CDT/include)
+
 CPMAddPackage(
         NAME EIGEN
         GIT_REPOSITORY https://gitlab.com/libeigen/eigen
         GIT_TAG 3147391d946bb4b6c68edd901f2add6ac1f31f8c
         GIT_SHALLOW TRUE
-        DOWNLOAD_ONLY TRUE
 )
 set(EIGEN_INCLUDE_DIRS ${EIGEN_SOURCE_DIR})
 add_library(eigen_interface INTERFACE)
@@ -47,7 +50,16 @@ CPMAddPackage(
 add_library(alglib_interface INTERFACE)
 target_include_directories(alglib_interface INTERFACE ${alglib_SOURCE_DIR}/src)
 
+CPMAddPackage(
+        NAME simde
+        URL https://github.com/simd-everywhere/simde/releases/download/v0.8.2/simde-amalgamated-0.8.2.tar.xz
+)
+
+CPMAddPackage(
+        NAME proxsuite
+        URL https://github.com/Simple-Robotics/proxsuite/releases/download/v0.7.3/proxsuite-0.7.3.tar.gz
+)
+
 file(GLOB SOURCES *.cpp ${alglib_SOURCE_DIR}/src/*.cpp)
 pybind11_add_module(controller ${SOURCES})
-target_include_directories(controller PRIVATE ${CDT_SOURCE_DIR}/CDT/include)
-target_link_libraries(controller PRIVATE eigen_interface alglib_interface)
+target_link_libraries(controller PRIVATE eigen_interface alglib_interface cdt_interface proxsuite)
