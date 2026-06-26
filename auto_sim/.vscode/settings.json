@@ -1,0 +1,5 @@
+{
+	"python-envs.defaultEnvManager": "ms-python.python:pipenv",
+	"cmake.sourceDirectory": "C:/Users/jessi/Documents/School/fsae/sim/auto_sim/test_controller_2",
+	"editor.defaultFormatter": null
+}

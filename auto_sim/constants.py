@@ -1,0 +1,1 @@
+VEHICLE_WIDTH_M = 1.2
