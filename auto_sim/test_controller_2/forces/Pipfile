@@ -1,0 +1,14 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "1.26.1"
+scipy = "1.11.3"
+requests = "2.22"
+casadi = "3.6.7"
+matplotlib = "*"
+
+[requires]
+python_version = "3.11"
