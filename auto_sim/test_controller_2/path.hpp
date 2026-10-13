@@ -14,7 +14,7 @@ void compute_path_from_percepted_cones();
  * Note this overload is MUCH faster than without at_t
  * @param x0 x position
  * @param y0 y position
- * @param t please use this to seed the optimization algorithm
+ * @param t use this just to seed the optimization algorithm
  * @return t s.t. the point on the center line that is closest to (x, y) in terms of Euclidean distance
  */
 double project(double x0, double y0, double t);
