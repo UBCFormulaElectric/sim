@@ -32,12 +32,36 @@ CPMAddPackage(
         DOWNLOAD_ONLY TRUE
 )
 set(EIGEN_INCLUDE_DIRS ${EIGEN_SOURCE_DIR})
-add_library(eigen_interface INTERFACE)
-target_include_directories(eigen_interface SYSTEM INTERFACE ${EIGEN_INCLUDE_DIRS})
-target_compile_definitions(eigen_interface INTERFACE
-        EIGEN_STACK_ALLOCATION_LIMIT=0
-        EIGEN_MAX_STATIC_ALIGN_BYTES=0
+# Keep Eigen external to ProSuite's install export set.
+if (NOT TARGET Eigen3::Eigen)
+    add_library(Eigen3::Eigen INTERFACE IMPORTED GLOBAL)
+    set_target_properties(Eigen3::Eigen PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${EIGEN_INCLUDE_DIRS}"
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${EIGEN_INCLUDE_DIRS}"
+            INTERFACE_COMPILE_DEFINITIONS
+            "EIGEN_STACK_ALLOCATION_LIMIT=0;EIGEN_MAX_STATIC_ALIGN_BYTES=0"
+    )
+endif ()
+
+CPMAddPackage(
+        NAME AUTO_DIFF
+        GITHUB_REPOSITORY autodiff/autodiff
+        GIT_TAG 2e2f3a2b16afcd9c04e76c8a689e9fd23ff78679
+        GIT_SHALLOW TRUE
+        DOWNLOAD_ONLY TRUE
 )
+set(AUTO_DIFF_INCLUDE_DIRS
+        # Required by autodiff internal includes like <autodiff/common/...>
+        "${AUTO_DIFF_SOURCE_DIR}"
+        # so we can directly include <dual.hpp>
+        "${AUTO_DIFF_SOURCE_DIR}/autodiff/forward"
+        # so we can directly include <gradient.hpp>
+        "${AUTO_DIFF_SOURCE_DIR}/autodiff/forward/utils"
+)
+
+add_library(autodiff_interface INTERFACE)
+target_link_libraries(autodiff_interface INTERFACE Eigen3::Eigen)
+target_include_directories(autodiff_interface SYSTEM INTERFACE ${AUTO_DIFF_INCLUDE_DIRS})
 
 CPMAddPackage(
         NAME alglib
@@ -60,4 +84,4 @@ CPMAddPackage(
 file(GLOB SOURCES *.cpp ${alglib_SOURCE_DIR}/src/*.cpp)
 pybind11_add_module(controller ${SOURCES})
 target_include_directories(controller PRIVATE ${CDT_SOURCE_DIR}/CDT/include)
-target_link_libraries(controller PRIVATE eigen_interface alglib_interface proxsuite)
+target_link_libraries(controller PRIVATE Eigen3::Eigen alglib_interface autodiff_interface proxsuite)

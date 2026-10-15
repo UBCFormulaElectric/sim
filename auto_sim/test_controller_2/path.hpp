@@ -4,6 +4,8 @@
 #include "interpolation.h"
 #include "types.hpp"
 
+#include <Eigen/Dense>
+#include <autodiff/reverse/var.hpp>
 #include <vector>
 
 /**
@@ -27,11 +29,8 @@ double project(double x0, double y0, double t);
  */
 double project(double x, double y);
 
-struct Location {
-    double x;
-    double y;
-};
-Location spline_t(double t);
+Eigen::Vector2<autodiff::var> spline_t(const autodiff::var& t);
+Eigen::Vector2<autodiff::var> spline_t_prime(const autodiff::var& t);
 
 // for debugging purposes only
 inline CDT::EdgeUSet offline_boundary_edges;

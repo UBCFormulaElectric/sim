@@ -33,10 +33,10 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
         .def(py::init<>())
         .def_readwrite("x", &VehicleState::x)
         .def_readwrite("y", &VehicleState::y)
-        .def_readwrite("theta", &VehicleState::theta)
+        .def_readwrite("psi", &VehicleState::psi)
         .def_readwrite("v_x", &VehicleState::v_x)
         .def_readwrite("v_y", &VehicleState::v_y)
-        .def_readwrite("omega", &VehicleState::omega);
+        .def_readwrite("r", &VehicleState::r);
 
     py::enum_<ConeColor>(m, "ConeColor")
         .value("BLUE", ConeColor::BLUE)
