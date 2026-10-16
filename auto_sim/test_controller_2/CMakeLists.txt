@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 4.1.1)
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_COLOR_DIAGNOSTICS ON)
 project(high_level_controller)
 
 file(
@@ -71,14 +73,27 @@ CPMAddPackage(
 add_library(alglib_interface INTERFACE)
 target_include_directories(alglib_interface INTERFACE ${alglib_SOURCE_DIR}/src)
 
+# Use the source archive (not the amalgamated one) so headers live under simde/
 CPMAddPackage(
         NAME simde
-        URL https://github.com/simd-everywhere/simde/releases/download/v0.8.2/simde-amalgamated-0.8.2.tar.xz
+        URL https://github.com/simd-everywhere/simde/archive/refs/tags/v0.8.2.tar.gz
+        DOWNLOAD_ONLY TRUE
 )
+if (NOT TARGET simde)
+    add_library(simde INTERFACE IMPORTED GLOBAL)
+    set_target_properties(simde PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${simde_SOURCE_DIR}"
+            INTERFACE_SYSTEM_INCLUDE_DIRECTORIES "${simde_SOURCE_DIR}"
+    )
+endif ()
 
+# Tell proxsuite's jrl-cmakemodules that Eigen3 and Simde targets are provided
+# here, so it skips find_package() for them.
+set(PROJECT_PACKAGES_IN_WORKSPACE Eigen3 Simde)
 CPMAddPackage(
         NAME proxsuite
         URL https://github.com/Simple-Robotics/proxsuite/releases/download/v0.7.3/proxsuite-0.7.3.tar.gz
+        OPTIONS "BUILD_TESTING OFF"
 )
 
 file(GLOB SOURCES *.cpp ${alglib_SOURCE_DIR}/src/*.cpp)

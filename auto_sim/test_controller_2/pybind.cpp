@@ -25,7 +25,7 @@ static double get_center_line_length() {
 
 PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     py::class_<ControlOutput>(m, "ControlOutput")
-        .def(py::init<double, double>())
+        .def(py::init<double, double, double>())
         .def_readwrite("ax", &ControlOutput::ax)
         .def_readwrite("omega_dot", &ControlOutput::omega_dot);
 
@@ -53,10 +53,10 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
         .def("v1", &CDT::Edge::v1)
         .def("v2", &CDT::Edge::v2);
 
-    py::class_<Location>(m, "Location")
-        .def(py::init<double, double>())
-        .def_readwrite("x", &Location::x)
-        .def_readwrite("y", &Location::y);
+    // py::class_<Location>(m, "Location")
+    //     .def(py::init<double, double>())
+    //     .def_readwrite("x", &Location::x)
+    //     .def_readwrite("y", &Location::y);
 
     m.def("compute", &compute, R"pbdoc(
         Compute control output
