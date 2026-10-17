@@ -165,28 +165,35 @@ double project(const double x0, const double y0, double t) {
     throw std::exception("project did not converge");
 }
 
-Eigen::Vector2<autodiff::var> spline_t(const autodiff::var& t) {
+Eigen::Vector2<autodiff::dual2nd> spline_t(const autodiff::dual2nd& t_dual) {
+    const double t = autodiff::val(t_dual);
     double l_x, l_dx, l_ddx;
     alglib::spline1ddiff(x_spline, t, l_x, l_dx, l_ddx);
     double l_y, l_dy, l_ddy;
     alglib::spline1ddiff(y_spline, t, l_y, l_dy, l_ddy);
 
-    autodiff::dual l_x_dual = l_x;
+    autodiff::dual2nd l_x_dual = l_x;
     l_x_dual.grad = l_dx;
-    autodiff::dual l_y_dual = l_y;
+    l_x_dual.grad.grad = l_ddx;
+    autodiff::dual2nd l_y_dual = l_y;
     l_y_dual.grad = l_dy;
+    l_y_dual.grad.grad = l_ddy;
     return { l_x_dual, l_y_dual };
 }
 
-Eigen::Vector2<autodiff::var> spline_t_prime(const autodiff::var& t) {
+Eigen::Vector2<autodiff::dual2nd> spline_t_prime(const autodiff::dual2nd& t_dual) {
+    const double t = autodiff::val(t_dual);
+
     double l_x, l_dx, l_ddx;
     alglib::spline1ddiff(x_spline, t, l_x, l_dx, l_ddx);
     double l_y, l_dy, l_ddy;
     alglib::spline1ddiff(y_spline, t, l_y, l_dy, l_ddy);
 
-    autodiff::dual l_dx_dual = l_dx;
+    autodiff::dual2nd l_dx_dual = l_dx;
     l_dx_dual.grad = l_ddx;
-    autodiff::dual l_dy_dual = l_dy;
+    l_dx_dual.grad.grad = 0;
+    autodiff::dual2nd l_dy_dual = l_dy;
     l_dy_dual.grad = l_ddy;
+    l_dy_dual.grad.grad = 0;
     return { l_dx_dual, l_dy_dual };
 }

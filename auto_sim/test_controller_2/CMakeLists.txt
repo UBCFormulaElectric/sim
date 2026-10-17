@@ -26,6 +26,9 @@ CPMAddPackage(
         GIT_TAG 1.4.4
         DOWNLOAD_ONLY TRUE
 )
+add_library(CDT_interface INTERFACE)
+target_include_directories(CDT_interface INTERFACE ${CDT_SOURCE_DIR}/CDT/include)
+
 CPMAddPackage(
         NAME EIGEN
         GIT_REPOSITORY https://gitlab.com/libeigen/eigen
@@ -98,5 +101,8 @@ CPMAddPackage(
 
 file(GLOB SOURCES *.cpp ${alglib_SOURCE_DIR}/src/*.cpp)
 pybind11_add_module(controller ${SOURCES})
-target_include_directories(controller PRIVATE ${CDT_SOURCE_DIR}/CDT/include)
-target_link_libraries(controller PRIVATE Eigen3::Eigen alglib_interface autodiff_interface proxsuite)
+target_link_libraries(controller PRIVATE CDT_interface Eigen3::Eigen alglib_interface autodiff_interface proxsuite)
+
+
+add_executable(test test.cpp)
+target_link_libraries(test PRIVATE autodiff_interface)

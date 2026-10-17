@@ -5,7 +5,7 @@
 #include "types.hpp"
 
 #include <Eigen/Dense>
-#include <autodiff/reverse/var.hpp>
+#include <dual.hpp>
 #include <vector>
 
 /**
@@ -29,8 +29,8 @@ double project(double x0, double y0, double t);
  */
 double project(double x, double y);
 
-Eigen::Vector2<autodiff::var> spline_t(const autodiff::var& t);
-Eigen::Vector2<autodiff::var> spline_t_prime(const autodiff::var& t);
+Eigen::Vector2<autodiff::dual2nd> spline_t(const autodiff::dual2nd& t);
+Eigen::Vector2<autodiff::dual2nd> spline_t_prime(const autodiff::dual2nd& t);
 
 // for debugging purposes only
 inline CDT::EdgeUSet offline_boundary_edges;

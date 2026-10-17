@@ -1,9 +1,8 @@
 #include "controller.hpp"
 
 #include <autodiff/forward/dual.hpp>
-#include <autodiff/reverse/var.hpp>
-#include <autodiff/reverse/var/eigen.hpp>
-
+#include <autodiff/forward/real.hpp>
+#include <autodiff/forward/real/eigen.hpp>
 #include <cassert>
 #include <optional>
 #include <proxsuite/proxqp/sparse/sparse.hpp>
@@ -23,7 +22,7 @@ constexpr static double w_2 = 1.0; // TODO tune
 constexpr static double w_3 = 1.0; // TODO tune
 
 // dimensions
-constexpr static isize n = T * dims;
+constexpr static isize n = state_dims + T * dims;
 constexpr static isize n_eq = T * state_dims;
 constexpr static isize n_ineq = 0;
 struct MPCState {
@@ -38,7 +37,7 @@ struct MPCState {
         // TODO how to seed theta?
         return { state.x, state.y, state.v_x, state.v_y, state.psi, state.r, 0 };
     }
-    Eigen::Matrix<double, state_dims, 1> into() const {
+    [[nodiscard]] Eigen::Matrix<double, state_dims, 1> into() const {
         return { x, y, v_x, v_y, psi, r };
     }
 };
@@ -72,18 +71,19 @@ static sparse::SparseMat<double, isize>
 static sparse::Vec<double> g(n), b(n_eq), l(n_ineq), u(n_ineq);
 static std::optional<sparse::QP<double, isize>> qp_optional = std::nullopt;
 
-static Eigen::Matrix2<autodiff::var> RR(const autodiff::var& theta) {
+static Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
     const auto l_prime = spline_t_prime(theta);
-    return (Eigen::Matrix2<autodiff::var>() << l_prime[0], -l_prime[1], l_prime[1], l_prime[0]).finished();
+    return (Eigen::Matrix2<autodiff::dual2nd>() << l_prime[0], -l_prime[1], l_prime[1], l_prime[0]).finished();
 }
-static Eigen::Matrix2<autodiff::var> gamma(const autodiff::var& theta) {
-    const static Eigen::Matrix2<autodiff::var> W { { w_1, 0, 0, w_2 } };
-    const Eigen::Matrix2<autodiff::var> RR_theta = RR(theta);
+static Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
+    const static Eigen::Matrix2<autodiff::dual2nd> W { { w_1, 0, 0, w_2 } };
+    const Eigen::Matrix2<autodiff::dual2nd> RR_theta = RR(theta);
     return 1 / spline_t(theta).squaredNorm() * RR_theta.transpose() * W * RR_theta;
 }
-static autodiff::var cost(const Eigen::Matrix<autodiff::var, state_dims, 1>& state) {
-    const Eigen::Vector2<autodiff::var> l_minus_x = spline_t(state(5)) - Eigen::Vector2<autodiff::var>(state(0), state(1));
-    return autodiff::var(l_minus_x.transpose() * gamma(state(5)) * l_minus_x) - autodiff::var(w_3 * state(5));
+static autodiff::dual2nd cost(const Eigen::Matrix<autodiff::dual2nd, state_dims, 1>& state) {
+    const Eigen::Vector2<autodiff::dual2nd> l_minus_x = spline_t(state(5)) - Eigen::Vector2<autodiff::dual2nd>(state(0), state(1));
+    return autodiff::dual2nd(l_minus_x.transpose() * gamma(state(5)) * l_minus_x)
+        - autodiff::dual2nd(w_3) * state(5);
 }
 
 void init() {
@@ -101,22 +101,56 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     assert(qp_optional.has_value());
     sparse::QP<double, isize>& qp = qp_optional.value();
 
-    {
-        // suppose we have
-        const Eigen::Matrix<double, state_dims, 1> x_i;
-        Eigen::Matrix<autodiff::var, state_dims, 1> x_i_var;
+    static Eigen::Matrix<double, T * dims, 1> last_result;
+
+    for (isize i = 0; i < T; i++) {
+        // we use last_result directly implying that the movement between iterations is sufficiently small
+        // to not require a new seed for the optimization algorithm
+        Eigen::Matrix<double, state_dims, 1> x_i = last_result.segment<state_dims>(i * dims);
+
         // calculate
-        Eigen::Matrix<double, state_dims, 1> grad_f;
-        const Eigen::Matrix<double, state_dims, state_dims> h = autodiff::hessian(cost(x_i_var), x_i_var, grad_f);
+        Eigen::Matrix<double, state_dims, 1> grad_f { };
+        Eigen::Matrix<double, state_dims, state_dims> H_x_i { };
+        {
+            Eigen::Matrix<autodiff::dual2nd, state_dims, 1> x_i_d;
+            for (isize j = 0; j < state_dims; j++) {
+                x_i_d(j) = x_i(j);
+            }
+            autodiff::dual2nd f_x;
+            autodiff::hessian(cost, autodiff::wrt(x_i_d), autodiff::at(x_i_d), f_x, grad_f, H_x_i);
+        }
         // construct
-        const Eigen::Matrix<double, state_dims, state_dims> P_i = 1 / 2 * h;
-        const Eigen::Matrix<double, state_dims, 1> q_i = grad_f - h * x_i;
+        const Eigen::Matrix<double, state_dims, state_dims> P_i = 1 / 2 * H_x_i;
+        const Eigen::Matrix<double, state_dims, 1> q_i = grad_f - H_x_i * x_i;
+
+        for (isize j = 0; j < state_dims; j++) {
+            for (isize k = 0; k < state_dims; k++) {
+                H.coeffRef(i * state_dims + j, state_dims + i * state_dims + k) = P_i(j, k);
+            }
+        }
+        for (isize j = 0; j < state_dims; j++) {
+            g.coeffRef(state_dims + i * state_dims + j) = q_i(j);
+        }
+    }
+
+    {
+        // populate A, b
+        // TODO develop models
+        // TODO autodiff into the models
     }
 
     // populate H, g, A, b
     qp.update(H, g, A, b, C, l, u);
     // solve
     qp.solve();
+    // TODO use qp.results.x to seed the next iteration
+    // for (isize i = 0; i < T; i++) {
+    //     for (isize j = 0; j < state_dims; j++) {
+    //         taylor_center_state[i * state_dims + j] = qp.results.x[state_dims + i * dims + j];
+    //     }
+    // }
+    last_result = qp.results.x.segment(state_dims, state_dims + T * dims);
+
     return qp.results.x;
 }
 
