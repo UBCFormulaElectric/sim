@@ -192,12 +192,7 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     qp.update(H, g, A, b, C, lower, upper);
     // solve
     qp.solve();
-    // TODO use qp.results.x to seed the next iteration
-    // for (isize i = 0; i < T; i++) {
-    //     for (isize j = 0; j < state_dims; j++) {
-    //         taylor_center_state[i * state_dims + j] = qp.results.x[state_dims + i * dims + j];
-    //     }
-    // }
+    // use qp.results.x to seed the next iteration
     last_result = qp.results.x.segment(state_dims, state_dims + T * dims);
 
     return qp.results.x;
