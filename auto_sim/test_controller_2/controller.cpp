@@ -7,7 +7,9 @@
 #include <optional>
 #include <proxsuite/proxqp/sparse/sparse.hpp>
 #include <proxsuite/proxqp/utils/random_qp_problems.hpp>
+#include <unsupported/Eigen/MatrixFunctions>
 
+#include "model.hpp"
 #include "path.hpp"
 
 using namespace proxsuite::proxqp;
@@ -68,7 +70,7 @@ struct MPCParams {
 // matrices
 static sparse::SparseMat<double, isize>
     H(n, n), A(n_eq, n), C(n_ineq, n);
-static sparse::Vec<double> g(n), b(n_eq), l(n_ineq), u(n_ineq);
+static sparse::Vec<double> g(n), b(n_eq), lower(n_ineq), upper(n_ineq);
 static std::optional<sparse::QP<double, isize>> qp_optional = std::nullopt;
 
 static Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
@@ -86,11 +88,17 @@ static autodiff::dual2nd cost(const Eigen::Matrix<autodiff::dual2nd, state_dims,
         - autodiff::dual2nd(w_3) * state(5);
 }
 
+static Eigen::Matrix<double, state_dims, 1> xi_prime(const Eigen::Matrix<double, state_dims, 1>& x, const Eigen::Matrix<double, control_dims, 1>& u) {
+    // TODO implement the process model
+    return { };
+};
+
 void init() {
     // initialize the H, A, C matrices (memory wise I imagine)
     sparse::SparseMat<bool, isize> H_mask(n, n), A_mask(n_eq, n), C_mask(n_ineq, n);
     // TODO populate the masks
     qp_optional = std::make_optional<sparse::QP<double, isize>>(H_mask, A_mask, C_mask);
+    // TODO prepopulate A with 1s
 }
 
 sparse::Vec<double> compute(const VehicleState& ve) {
@@ -133,14 +141,55 @@ sparse::Vec<double> compute(const VehicleState& ve) {
         }
     }
 
-    {
+    // populuate b vector with vehicle state
+    const Eigen::Matrix<double, state_dims, 1> ve_m = MPCState::from(ve).into();
+    for (isize j = 0; j < state_dims; j++) {
+        b.coeffRef(j) = ve_m(j);
+    }
+
+    for (isize i = 1; i < T; i++) {
         // populate A, b
-        // TODO develop models
-        // TODO autodiff into the models
+        const Eigen::Matrix<double, state_dims, 1> x_i = last_result.segment<state_dims>(i * dims + 0);
+        const Eigen::Matrix<double, control_dims, 1> u_i = last_result.segment<control_dims>(i * dims + state_dims);
+        Eigen::Matrix<double, state_dims, 1> xi_prime_at;
+        const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_i), autodiff::at(x_i, u_i), xi_prime_at);
+        const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_i), autodiff::at(x_i, u_i), xi_prime_at);
+        const Eigen::Matrix<double, state_dims, 1> r = xi_prime(x_i, u_i) - A_c * x_i - B_c * u_i;
+
+        static constexpr isize ee_s = state_dims + control_dims + 1;
+        Eigen::Matrix<double, ee_s, ee_s> ee { };
+        // populate ee from A_c
+        for (isize j = 0; j < state_dims; j++) {
+            for (isize k = 0; k < state_dims; k++) {
+                ee.coeffRef(j, k) = A_c(j, k);
+            }
+        }
+        // populate ee from B_c
+        for (isize j = 0; j < state_dims; j++) {
+            for (isize k = 0; k < control_dims; k++) {
+                ee.coeffRef(j, state_dims + k) = B_c(j, k);
+            }
+        }
+        for (isize j = 0; j < state_dims; j++) {
+            ee.coeffRef(j, dims) = r(j);
+        }
+        ee = ee.exp();
+
+        // populate the A matrix with ee
+        for (isize j = 0; j < state_dims; j++) {
+            for (isize k = 0; k < state_dims + control_dims; k++) {
+                A.coeffRef(i * state_dims + j, (i - 1) * dims + k) = ee(j, k);
+            }
+        }
+
+        // populate the b vector with ee
+        for (isize j = 0; j < state_dims; j++) {
+            b.coeffRef(i * state_dims + j) += ee(j, dims);
+        }
     }
 
     // populate H, g, A, b
-    qp.update(H, g, A, b, C, l, u);
+    qp.update(H, g, A, b, C, lower, upper);
     // solve
     qp.solve();
     // TODO use qp.results.x to seed the next iteration
