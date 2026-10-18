@@ -97,17 +97,18 @@ Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
 Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
     const static Eigen::Matrix2<autodiff::dual2nd> W { { w_1, 0 }, { 0, w_2 } };
     const Eigen::Matrix2<autodiff::dual2nd> RR_theta = RR(theta);
-    return 1 / spline_t(theta).squaredNorm() * RR_theta.transpose() * W * RR_theta;
+    return 1 / spline_t_prime(theta).squaredNorm() * RR_theta.transpose() * W * RR_theta;
 }
 autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
-    const Eigen::Vector2<autodiff::dual2nd> l_minus_x = spline_t(state(5)) - Eigen::Vector2<autodiff::dual2nd>(state(0), state(1));
-    return autodiff::dual2nd(l_minus_x.transpose() * gamma(state(5)) * l_minus_x)
-        - autodiff::dual2nd(w_3) * state(5);
+    const autodiff::dual2nd& theta = state(6);
+    const Eigen::Vector2<autodiff::dual2nd> l_minus_x = spline_t(theta) - Eigen::Vector2<autodiff::dual2nd>(state(0), state(1));
+    return autodiff::dual2nd(l_minus_x.transpose() * gamma(theta) * l_minus_x)
+        - autodiff::dual2nd(w_3) * theta;
 }
 
 StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
     // TODO implement the process model
-    return { };
+    return StateVec<autodiff::dual>::Zero();
 }
 
 constexpr double A_X_MIN = -1.0;
@@ -153,8 +154,10 @@ void init() {
     }
     {
         std::vector<Eigen::Triplet<bool>> C_triplet;
-        for (isize i = 0; i < n_ineq; i++) {
-            C_triplet.emplace_back(i, state_dims + i, true);
+        for (isize t = 0; t < T; t++) {
+            for (isize i = 0; i < control_dims; i++) {
+                C_triplet.emplace_back(control_dims * t + i, dims * t + state_dims + i, true);
+            }
         }
         C_mask.setFromTriplets(C_triplet.begin(), C_triplet.end());
     }
@@ -163,6 +166,8 @@ void init() {
     H = H_mask.cast<double>();
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
+    g.setZero();
+    b.setZero();
     for (isize t = 0; t < T; t++) {
         lower(t * control_dims) = A_X_MIN; // a_x lower bound
         lower(t * control_dims + 1) = R_DOT_MIN; // r_dot
@@ -209,17 +214,23 @@ sparse::Vec<double> compute(const VehicleState& ve) {
             autodiff::dual2nd f_x;
             autodiff::hessian(cost, autodiff::wrt(x_i_d), autodiff::at(x_i_d), f_x, grad_f, H_x_i);
         }
-        // construct
-        const Eigen::Matrix<double, state_dims, state_dims> P_i = 1 / 2 * H_x_i;
-        const StateVec<double> q_i = grad_f - H_x_i * x_i;
+        // construct the second order taylor expansion of the cost around x_i.
+        // proxsuite minimizes 1/2 x^T H x + g^T x, so the hessian goes in directly (no extra factor of 1/2).
+        // the contouring cost is not convex in theta, so project the hessian onto the PSD cone since proxsuite requires a convex QP
+        const Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, state_dims, state_dims>> eig(H_x_i);
+        const Eigen::Matrix<double, state_dims, state_dims> P_i = eig.eigenvectors()
+            * eig.eigenvalues().cwiseMax(0.0).asDiagonal()
+            * eig.eigenvectors().transpose();
+        // keep the model's gradient at x_i equal to grad_f
+        const StateVec<double> q_i = grad_f - P_i * x_i;
 
         for (isize j = 0; j < state_dims; j++) {
             for (isize k = 0; k < state_dims; k++) {
-                H.coeffRef(i * state_dims + j, state_dims + i * state_dims + k) = P_i(j, k);
+                H.coeffRef(i * dims + j, i * dims + k) = P_i(j, k);
             }
         }
         for (isize j = 0; j < state_dims; j++) {
-            g.coeffRef(state_dims + i * state_dims + j) = q_i(j);
+            g.coeffRef(i * dims + j) = q_i(j);
         }
 
         if (i < 1) {
@@ -273,7 +284,7 @@ sparse::Vec<double> compute(const VehicleState& ve) {
 
         // populate the b vector with ee
         for (isize j = 0; j < state_dims; j++) {
-            b.coeffRef(i * state_dims + j) += -ee(j, dims);
+            b.coeffRef(i * state_dims + j) = -ee(j, dims);
         }
     }
 
