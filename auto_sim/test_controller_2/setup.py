@@ -1,25 +1,38 @@
-# Available at setup time due to pyproject.toml
+from pathlib import Path
+import sys
+
 from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup
 
 __version__ = "0.0.1"
 
-# get all sources in the build/_deps/alglib-src/alglib/src directory
-import os
+source_dir = Path(__file__).parent
+deps_dir = source_dir / "build" / "_deps"
 
-alglib_srcs = []
-for root, dirs, files in os.walk("build/_deps/alglib-src/src"):
-    for file in files:
-        if file.endswith(".cpp"):
-            alglib_srcs.append(os.path.join(root, file))
-print(alglib_srcs)
+alglib_srcs = list((deps_dir / "alglib-src" / "src").glob("*.cpp"))
+cpp_standard_flag = "/std:c++latest" if sys.platform == "win32" else "-std=c++23"
 
 ext_modules = [
     Pybind11Extension(
         "Controller",
-        ["pybind.cpp", "sim.cpp", "controller.cpp", "path.cpp", "perception.cpp"] + alglib_srcs,
-        include_dirs=[".", "build/_deps/cdt-src/CDT/include", "build/_deps/alglib-src/src"],
-        language="c++",
+        [str(path) for path in source_dir.glob("*.cpp")] + [str(path) for path in alglib_srcs],
+        include_dirs=[
+            str(source_dir),
+            str(deps_dir / "cdt-src" / "CDT" / "include"),
+            str(deps_dir / "eigen-src"),
+            str(deps_dir / "auto_diff-src"),
+            str(deps_dir / "auto_diff-src" / "autodiff" / "forward"),
+            str(deps_dir / "auto_diff-src" / "autodiff" / "forward" / "utils"),
+            str(deps_dir / "alglib-src" / "src"),
+            str(deps_dir / "simde-src"),
+            str(deps_dir / "proxsuite-src" / "include"),
+            str(deps_dir / "proxsuite-build" / "include"),
+        ],
+        define_macros=[
+            ("EIGEN_STACK_ALLOCATION_LIMIT", "0"),
+            ("EIGEN_MAX_STATIC_ALIGN_BYTES", "0"),
+        ],
+        extra_compile_args=[cpp_standard_flag],
     ),
 ]
 

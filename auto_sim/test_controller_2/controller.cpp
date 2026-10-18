@@ -3,8 +3,8 @@
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/real.hpp>
 #include <autodiff/forward/real/eigen.hpp>
+#include <proxsuite/proxqp/dense/dense.hpp>
 #include <proxsuite/proxqp/sparse/sparse.hpp>
-#include <proxsuite/proxqp/utils/random_qp_problems.hpp>
 #include <unsupported/Eigen/MatrixFunctions>
 
 #include <cassert>
@@ -91,11 +91,11 @@ dense::Vec<double> g(n), b(n_eq), lower(n_ineq), upper(n_ineq);
 std::optional<sparse::QP<double, isize>> qp_optional = std::nullopt;
 
 Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
-    const auto l_prime = spline_t_prime(theta);
+    const Eigen::Vector2<autodiff::dual2nd> l_prime = spline_t_prime(theta);
     return (Eigen::Matrix2<autodiff::dual2nd>() << l_prime[0], -l_prime[1], l_prime[1], l_prime[0]).finished();
 }
 Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
-    const static Eigen::Matrix2<autodiff::dual2nd> W { { w_1, 0, 0, w_2 } };
+    const static Eigen::Matrix2<autodiff::dual2nd> W { { w_1, 0 }, { 0, w_2 } };
     const Eigen::Matrix2<autodiff::dual2nd> RR_theta = RR(theta);
     return 1 / spline_t(theta).squaredNorm() * RR_theta.transpose() * W * RR_theta;
 }
@@ -109,6 +109,15 @@ StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const Contr
     // TODO implement the process model
     return { };
 }
+
+constexpr double A_X_MIN = -1.0;
+constexpr double A_X_MAX = 1.0;
+constexpr double R_DOT_MIN = -1.0;
+constexpr double R_DOT_MAX = 1.0;
+constexpr double DELTA_MIN = -0.5;
+constexpr double DELTA_MAX = 0.5;
+constexpr double V_THETA_MIN = -1.0;
+constexpr double V_THETA_MAX = 1.0;
 }
 
 void init() {
@@ -118,9 +127,9 @@ void init() {
     {
         std::vector<Eigen::Triplet<bool>> H_triplet;
         for (isize t = 0; t < T; t++) {
-            for (isize i = 0; i < n; i++) {
-                for (isize j = 0; j < n; j++) {
-                    H_triplet.emplace_back(state_dims * t + i, state_dims + dims * t + j, true);
+            for (isize i = 0; i < state_dims; i++) {
+                for (isize j = 0; j < state_dims; j++) {
+                    H_triplet.emplace_back(dims * t + i, dims * t + j, true);
                 }
             }
         }
@@ -129,9 +138,11 @@ void init() {
     {
         std::vector<Eigen::Triplet<bool>> A_triplet;
         for (isize t = 0; t < T; t++) {
-            for (isize i = 0; i < n_eq; i++) {
-                for (isize j = 0; j < n; j++) {
-                    A_triplet.emplace_back(state_dims * t + i, dims * t + j, true);
+            if (t > 0) {
+                for (isize i = 0; i < state_dims; i++) {
+                    for (isize j = 0; j < dims; j++) {
+                        A_triplet.emplace_back(state_dims * t + i, dims * (t - 1) + j, true);
+                    }
                 }
             }
             for (isize i = 0; i < state_dims; i++) {
@@ -152,7 +163,17 @@ void init() {
     H = H_mask.cast<double>();
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
-    // TODO populate constraints lower and upper
+    for (isize t = 0; t < T; t++) {
+        lower(t * control_dims) = A_X_MIN; // a_x lower bound
+        lower(t * control_dims + 1) = R_DOT_MIN; // r_dot
+        lower(t * control_dims + 2) = DELTA_MIN; // delta
+        lower(t * control_dims + 3) = V_THETA_MIN; // v_theta
+        upper(t * control_dims) = A_X_MAX; // a_x upper bound
+        upper(t * control_dims + 1) = R_DOT_MAX; // r_dot
+        upper(t * control_dims + 2) = DELTA_MAX; // delta
+        upper(t * control_dims + 3) = V_THETA_MAX; // v_theta
+        // TODO constraints for tire grip limits
+    }
 
     // populate the identity matrices inside of A
     for (isize t = 1; t < T; t++) {
@@ -240,6 +261,7 @@ sparse::Vec<double> compute(const VehicleState& ve) {
         for (isize j = 0; j < state_dims; j++) {
             ee.coeffRef(j, dims) = r(j);
         }
+        ee *= deltaT_s;
         ee = ee.exp();
 
         // populate the A matrix with ee
@@ -254,6 +276,15 @@ sparse::Vec<double> compute(const VehicleState& ve) {
             b.coeffRef(i * state_dims + j) += -ee(j, dims);
         }
     }
+
+    // print the size of all the vectors and matrices below
+    std::cout << "H size: " << H.rows() << "x" << H.cols() << std::endl;
+    std::cout << "g size: " << g.size() << std::endl;
+    std::cout << "A size: " << A.rows() << "x" << A.cols() << std::endl;
+    std::cout << "b size: " << b.size() << std::endl;
+    std::cout << "C size: " << C.rows() << "x" << C.cols() << std::endl;
+    std::cout << "lower size: " << lower.size() << std::endl;
+    std::cout << "upper size: " << upper.size() << std::endl;
 
     // populate H, g, A, b
     qp.update(H, g, A, b, C, lower, upper);

@@ -99,10 +99,18 @@ CPMAddPackage(
         OPTIONS "BUILD_TESTING OFF"
 )
 
-file(GLOB SOURCES *.cpp ${alglib_SOURCE_DIR}/src/*.cpp)
-pybind11_add_module(controller ${SOURCES})
+file(GLOB ALGLIB_SOURCES ${alglib_SOURCE_DIR}/src/*.cpp)
+file(GLOB SOURCES *.cpp)
+pybind11_add_module(controller ${SOURCES} ${ALGLIB_SOURCES})
 target_link_libraries(controller PRIVATE CDT_interface Eigen3::Eigen alglib_interface autodiff_interface proxsuite)
 
 
-add_executable(test test.cpp)
-target_link_libraries(test PRIVATE autodiff_interface)
+add_executable(test
+        controller.cpp
+        perception.cpp
+        path.cpp
+        sim.cpp
+        test.cpp
+        ${ALGLIB_SOURCES}
+)
+target_link_libraries(test PRIVATE CDT_interface Eigen3::Eigen alglib_interface autodiff_interface proxsuite)
