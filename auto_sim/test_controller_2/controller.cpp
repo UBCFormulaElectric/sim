@@ -14,14 +14,15 @@
 
 using namespace proxsuite::proxqp;
 
+namespace {
 // parameters
-constexpr static double deltaT_s = 0.1; // time represented per step
-constexpr static isize state_dims = 6; // state dimensions (x,y,v_x,v_y,r,theta)
-constexpr static isize control_dims = 4; // control dimensions (a_x,r_dot,delta,v_theta)
-constexpr static isize dims = state_dims + control_dims;
-constexpr static double w_1 = 1.0; // TODO tune
-constexpr static double w_2 = 1.0; // TODO tune
-constexpr static double w_3 = 1.0; // TODO tune
+constexpr double deltaT_s = 0.1; // time represented per step
+constexpr isize state_dims = 7; // state dimensions (x,y,v_x,v_y,psi,r,theta)
+constexpr isize control_dims = 4; // control dimensions (a_x,r_dot,delta,v_theta)
+constexpr isize dims = state_dims + control_dims;
+constexpr double w_1 = 1.0; // TODO tune
+constexpr double w_2 = 1.0; // TODO tune
+constexpr double w_3 = 1.0; // TODO tune
 
 template <typename T>
 using StateVec = Eigen::Matrix<T, state_dims, 1>;
@@ -29,9 +30,9 @@ template <typename T>
 using ControlVec = Eigen::Matrix<T, control_dims, 1>;
 
 // dimensions
-constexpr static isize n = T * dims;
-constexpr static isize n_eq = T * state_dims; // model over the state variables
-constexpr static isize n_ineq = T * control_dims; // only have constraints over the control inputs
+constexpr isize n = T * dims;
+constexpr isize n_eq = T * state_dims; // model over the state variables
+constexpr isize n_ineq = T * control_dims; // only have constraints over the control inputs
 struct MPCState {
     double x;
     double y;
@@ -42,18 +43,28 @@ struct MPCState {
     double theta;
     static MPCState from(const VehicleState& state) {
         // TODO how to seed theta?
-        return { state.x, state.y, state.v_x, state.v_y, state.psi, state.r, 0 };
+        return MPCState {
+            .x = state.x,
+            .y = state.y,
+            .v_x = state.v_x,
+            .v_y = state.v_y,
+            .psi = state.psi,
+            .r = state.r,
+            .theta = 0,
+        };
     }
     [[nodiscard]] StateVec<double> into() const {
-        return { x, y, v_x, v_y, psi, r };
+        return { x, y, v_x, v_y, psi, r, theta };
     }
 };
+static_assert(sizeof(MPCState) == state_dims * sizeof(double), "MPCState size mismatch");
 struct MPCControl {
     double a_x;
     double r_dot;
     double delta;
     double v_theta;
 };
+static_assert(sizeof(MPCControl) == control_dims * sizeof(double), "MPCControl size mismatch");
 struct MPCParams {
     double x;
     double y;
@@ -71,32 +82,34 @@ struct MPCParams {
     MPCParams(const MPCState& s, const MPCControl& c)
         : x(s.x), y(s.y), v_x(s.v_x), v_y(s.v_y), psi(s.psi), r(s.r), theta(s.theta), a_x(c.a_x), r_dot(c.r_dot), delta(c.delta), v_theta(c.v_theta) { }
 };
+static_assert(sizeof(MPCParams) == dims * sizeof(double), "MPCParams size mismatch");
 
 // matrices
-static sparse::SparseMat<double, isize>
+sparse::SparseMat<double, isize>
     H(n, n), A(n_eq, n), C(n_ineq, n);
-static dense::Vec<double> g(n), b(n_eq), lower(n_ineq), upper(n_ineq);
-static std::optional<sparse::QP<double, isize>> qp_optional = std::nullopt;
+dense::Vec<double> g(n), b(n_eq), lower(n_ineq), upper(n_ineq);
+std::optional<sparse::QP<double, isize>> qp_optional = std::nullopt;
 
-static Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
+Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
     const auto l_prime = spline_t_prime(theta);
     return (Eigen::Matrix2<autodiff::dual2nd>() << l_prime[0], -l_prime[1], l_prime[1], l_prime[0]).finished();
 }
-static Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
+Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
     const static Eigen::Matrix2<autodiff::dual2nd> W { { w_1, 0, 0, w_2 } };
     const Eigen::Matrix2<autodiff::dual2nd> RR_theta = RR(theta);
     return 1 / spline_t(theta).squaredNorm() * RR_theta.transpose() * W * RR_theta;
 }
-static autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
+autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
     const Eigen::Vector2<autodiff::dual2nd> l_minus_x = spline_t(state(5)) - Eigen::Vector2<autodiff::dual2nd>(state(0), state(1));
     return autodiff::dual2nd(l_minus_x.transpose() * gamma(state(5)) * l_minus_x)
         - autodiff::dual2nd(w_3) * state(5);
 }
 
-static StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
+StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
     // TODO implement the process model
     return { };
-};
+}
+}
 
 void init() {
     // initialize the H, A, C matrices (memory wise I imagine)
@@ -247,7 +260,7 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     // solve
     qp.solve();
     // use qp.results.x to seed the next iteration
-    last_result = qp.results.x.segment(state_dims, state_dims + T * dims);
+    last_result = qp.results.x.segment(0, T * dims);
 
     return qp.results.x;
 }

@@ -5,6 +5,8 @@
 
 constexpr inline proxsuite::linalg::veg::isize T = 10; // timesteps
 
+void init();
+
 /**
  * @param ve
  * @return The optimal trajectory from the current vehicle state to the goal state, as computed by the MPC controller.
