@@ -9,7 +9,6 @@
 #include <proxsuite/proxqp/utils/random_qp_problems.hpp>
 #include <unsupported/Eigen/MatrixFunctions>
 
-#include "model.hpp"
 #include "path.hpp"
 
 using namespace proxsuite::proxqp;
@@ -24,9 +23,9 @@ constexpr static double w_2 = 1.0; // TODO tune
 constexpr static double w_3 = 1.0; // TODO tune
 
 // dimensions
-constexpr static isize n = state_dims + T * dims;
-constexpr static isize n_eq = T * state_dims;
-constexpr static isize n_ineq = 0;
+constexpr static isize n = T * dims;
+constexpr static isize n_eq = T * state_dims; // model over the state variables
+constexpr static isize n_ineq = T * control_dims; // only have constraints over the control inputs
 struct MPCState {
     double x;
     double y;
@@ -70,7 +69,7 @@ struct MPCParams {
 // matrices
 static sparse::SparseMat<double, isize>
     H(n, n), A(n_eq, n), C(n_ineq, n);
-static sparse::Vec<double> g(n), b(n_eq), lower(n_ineq), upper(n_ineq);
+static dense::Vec<double> g(n), b(n_eq), lower(n_ineq), upper(n_ineq);
 static std::optional<sparse::QP<double, isize>> qp_optional = std::nullopt;
 
 static Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
@@ -96,9 +95,37 @@ static Eigen::Matrix<double, state_dims, 1> xi_prime(const Eigen::Matrix<double,
 void init() {
     // initialize the H, A, C matrices (memory wise I imagine)
     sparse::SparseMat<bool, isize> H_mask(n, n), A_mask(n_eq, n), C_mask(n_ineq, n);
-    // TODO populate the masks
+    for (isize t = 0; t < T; t++) {
+        for (isize i = 0; i < n; i++) {
+            for (isize j = 0; j < n; j++) {
+                H_mask.coeffRef(state_dims * t + i, state_dims + dims * t + j) = true;
+            }
+        }
+    }
+    for (isize t = 0; t < T; t++) {
+        for (isize i = 0; i < n_eq; i++) {
+            for (isize j = 0; j < n; j++) {
+                A_mask.coeffRef(i, j) = true;
+            }
+        }
+        for (isize i = 0; i < state_dims; i++) {
+            A_mask.coeffRef(state_dims * t + i, dims * t + i) = true;
+        }
+    }
+    for (isize i = 0; i < n_ineq; i++) {
+        C_mask.coeffRef(i, state_dims + i) = true;
+    }
     qp_optional = std::make_optional<sparse::QP<double, isize>>(H_mask, A_mask, C_mask);
-    // TODO prepopulate A with 1s
+    H = H_mask.cast<double>();
+    A = A_mask.cast<double>();
+    C = C_mask.cast<double>();
+
+    // populate the identity matrices inside of A
+    for (isize t = 1; t < T; t++) {
+        for (isize i = 0; i < state_dims; i++) {
+            A.coeffRef(state_dims * t + i, dims * t + i) = -1;
+        }
+    }
 }
 
 sparse::Vec<double> compute(const VehicleState& ve) {
@@ -149,8 +176,8 @@ sparse::Vec<double> compute(const VehicleState& ve) {
 
     for (isize i = 1; i < T; i++) {
         // populate A, b
-        const Eigen::Matrix<double, state_dims, 1> x_i = last_result.segment<state_dims>(i * dims + 0);
-        const Eigen::Matrix<double, control_dims, 1> u_i = last_result.segment<control_dims>(i * dims + state_dims);
+        Eigen::Matrix<double, state_dims, 1> x_i = last_result.segment<state_dims>(i * dims + 0);
+        Eigen::Matrix<double, control_dims, 1> u_i = last_result.segment<control_dims>(i * dims + state_dims);
         Eigen::Matrix<double, state_dims, 1> xi_prime_at;
         const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_i), autodiff::at(x_i, u_i), xi_prime_at);
         const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_i), autodiff::at(x_i, u_i), xi_prime_at);
@@ -184,7 +211,7 @@ sparse::Vec<double> compute(const VehicleState& ve) {
 
         // populate the b vector with ee
         for (isize j = 0; j < state_dims; j++) {
-            b.coeffRef(i * state_dims + j) += ee(j, dims);
+            b.coeffRef(i * state_dims + j) += -ee(j, dims);
         }
     }
 
@@ -199,23 +226,23 @@ sparse::Vec<double> compute(const VehicleState& ve) {
 }
 
 ControlOutput get_control(const sparse::Vec<double>& trajectory_control) {
-    return {
-        trajectory_control[state_dims + state_dims], // u_1[0] = a_x_1
-        trajectory_control[state_dims + state_dims + 1], // u_1[1] = r_dot_1
-        trajectory_control[state_dims + state_dims + 2], // u_1[2] = delta_1
+    return ControlOutput {
+        trajectory_control[state_dims], // u_1[0] = a_x_1
+        trajectory_control[state_dims + 1], // u_1[1] = r_dot_1
+        trajectory_control[state_dims + 2], // u_1[2] = delta_1
     };
 }
 
 std::array<VehicleState, T> get_trajectory(const sparse::Vec<double>& trajectory_control) {
     std::array<VehicleState, T> out;
     for (isize i = 0; i < T; i++) {
-        out[i] = {
-            trajectory_control[state_dims + i * dims],
-            trajectory_control[state_dims + i * dims + 1],
-            trajectory_control[state_dims + i * dims + 2],
-            trajectory_control[state_dims + i * dims + 3],
-            trajectory_control[state_dims + i * dims + 4],
-            trajectory_control[state_dims + i * dims + 5],
+        out[i] = VehicleState {
+            trajectory_control[i * dims],
+            trajectory_control[i * dims + 1],
+            trajectory_control[i * dims + 2],
+            trajectory_control[i * dims + 3],
+            trajectory_control[i * dims + 4],
+            trajectory_control[i * dims + 5],
         };
     }
     return out;
