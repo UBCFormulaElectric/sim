@@ -3,15 +3,20 @@
 #include "perception.hpp"
 #include "types.hpp"
 
+#include <filesystem>
 #include <fstream>
 #include <string>
 #include <vector>
 
-int main() {
-    std::ifstream infile("C:/Users/jessi/Documents/School/fsae/sim/auto_sim/labels/0000001.txt");
+int main(int argc, char** argv) {
+    // Default to the labels directory next to this source tree; allow overriding via argv[1].
+    const std::filesystem::path label_path = argc > 1
+        ? std::filesystem::path(argv[1])
+        : std::filesystem::path(__FILE__).parent_path() / ".." / "labels" / "0000001.txt";
+    std::ifstream infile(label_path);
     // Check if the file opened successfully
     if (!infile.is_open()) {
-        std::cerr << "Error: Could not open the file." << std::endl;
+        std::cerr << "Error: Could not open the file " << label_path << std::endl;
         return 1;
     }
 

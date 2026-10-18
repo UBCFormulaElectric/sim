@@ -1,6 +1,7 @@
 #include "path.hpp"
 #include "perception.hpp"
 #include "scopetimer.hpp"
+#include <stdexcept>
 #include <unordered_set>
 
 static std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, const ConeColor c) {
@@ -162,7 +163,18 @@ double project(const double x0, const double y0, double t) {
         }
     }
     std::cout << "project did not converge at x=" << x0 << "and y=" << y0 << std::endl;
-    throw std::exception("project did not converge");
+    throw std::runtime_error("project did not converge");
+}
+
+// apply the chain rule to lift f(t) onto a dual2nd t, given f, f' and f'' evaluated at val(t).
+// a dual2nd is (a + b e1) + (c + d e1) e2, so f(t) = f(a) + f'(a) b e1 + f'(a) c e2 + (f'(a) d + f''(a) b c) e1 e2
+static autodiff::dual2nd chain_rule(const autodiff::dual2nd& t, const double f, const double df, const double ddf) {
+    autodiff::dual2nd out;
+    out.val.val = f;
+    out.val.grad = df * t.val.grad;
+    out.grad.val = df * t.grad.val;
+    out.grad.grad = df * t.grad.grad + ddf * t.val.grad * t.grad.val;
+    return out;
 }
 
 Eigen::Vector2<autodiff::dual2nd> spline_t(const autodiff::dual2nd& t_dual) {
@@ -172,13 +184,7 @@ Eigen::Vector2<autodiff::dual2nd> spline_t(const autodiff::dual2nd& t_dual) {
     double l_y, l_dy, l_ddy;
     alglib::spline1ddiff(y_spline, t, l_y, l_dy, l_ddy);
 
-    autodiff::dual2nd l_x_dual = l_x;
-    l_x_dual.grad = l_dx;
-    l_x_dual.grad.grad = l_ddx;
-    autodiff::dual2nd l_y_dual = l_y;
-    l_y_dual.grad = l_dy;
-    l_y_dual.grad.grad = l_ddy;
-    return { l_x_dual, l_y_dual };
+    return { chain_rule(t_dual, l_x, l_dx, l_ddx), chain_rule(t_dual, l_y, l_dy, l_ddy) };
 }
 
 Eigen::Vector2<autodiff::dual2nd> spline_t_prime(const autodiff::dual2nd& t_dual) {
@@ -189,11 +195,6 @@ Eigen::Vector2<autodiff::dual2nd> spline_t_prime(const autodiff::dual2nd& t_dual
     double l_y, l_dy, l_ddy;
     alglib::spline1ddiff(y_spline, t, l_y, l_dy, l_ddy);
 
-    autodiff::dual2nd l_dx_dual = l_dx;
-    l_dx_dual.grad = l_ddx;
-    l_dx_dual.grad.grad = 0;
-    autodiff::dual2nd l_dy_dual = l_dy;
-    l_dy_dual.grad = l_ddy;
-    l_dy_dual.grad.grad = 0;
-    return { l_dx_dual, l_dy_dual };
+    // alglib doesn't expose l'''(t) (piecewise constant for a cubic spline), so approximate it as 0
+    return { chain_rule(t_dual, l_dx, l_ddx, 0), chain_rule(t_dual, l_dy, l_ddy, 0) };
 }
