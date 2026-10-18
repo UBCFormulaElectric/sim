@@ -87,7 +87,7 @@ static autodiff::dual2nd cost(const Eigen::Matrix<autodiff::dual2nd, state_dims,
         - autodiff::dual2nd(w_3) * state(5);
 }
 
-static Eigen::Matrix<double, state_dims, 1> xi_prime(const Eigen::Matrix<double, state_dims, 1>& x, const Eigen::Matrix<double, control_dims, 1>& u) {
+static Eigen::Matrix<autodiff::dual, state_dims, 1> xi_prime(const Eigen::Matrix<autodiff::dual, state_dims, 1>& x, const Eigen::Matrix<autodiff::dual, control_dims, 1>& u) {
     // TODO implement the process model
     return { };
 };
@@ -178,10 +178,21 @@ sparse::Vec<double> compute(const VehicleState& ve) {
         // populate A, b
         Eigen::Matrix<double, state_dims, 1> x_i = last_result.segment<state_dims>(i * dims + 0);
         Eigen::Matrix<double, control_dims, 1> u_i = last_result.segment<control_dims>(i * dims + state_dims);
-        Eigen::Matrix<double, state_dims, 1> xi_prime_at;
-        const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_i), autodiff::at(x_i, u_i), xi_prime_at);
-        const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_i), autodiff::at(x_i, u_i), xi_prime_at);
-        const Eigen::Matrix<double, state_dims, 1> r = xi_prime(x_i, u_i) - A_c * x_i - B_c * u_i;
+        Eigen::Matrix<autodiff::dual, state_dims, 1> x_i_dual;
+        Eigen::Matrix<autodiff::dual, control_dims, 1> u_i_dual;
+        for (isize j = 0; j < state_dims; j++) {
+            x_i_dual(j) = x_i(j);
+        }
+        for (isize j = 0; j < control_dims; j++) {
+            u_i_dual(j) = u_i(j);
+        }
+
+        Eigen::Matrix<autodiff::dual, state_dims, 1> xi_prime_at;
+        const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_i_dual), autodiff::at(x_i_dual, u_i_dual), xi_prime_at);
+        const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_i_dual), autodiff::at(x_i_dual, u_i_dual), xi_prime_at);
+
+        const Eigen::Matrix<double, state_dims, 1> o = xi_prime(x_i_dual, u_i_dual).cast<double>();
+        const Eigen::Matrix<double, state_dims, 1> r = o - A_c * x_i - B_c * u_i;
 
         static constexpr isize ee_s = state_dims + control_dims + 1;
         Eigen::Matrix<double, ee_s, ee_s> ee { };
