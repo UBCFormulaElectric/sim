@@ -15,6 +15,10 @@
 using namespace proxsuite::proxqp;
 
 namespace {
+// constants
+constexpr double m = 1.0; // mass of the vehicle
+constexpr double izz = 1.0; // moment of inertia about the z-axis
+
 // parameters
 constexpr double deltaT_s = 0.1; // time represented per step
 constexpr isize state_dims = 7; // state dimensions (x,y,v_x,v_y,psi,r,theta)
@@ -106,9 +110,24 @@ autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
         - autodiff::dual2nd(w_3) * theta;
 }
 
+Eigen::Matrix<autodiff::dual, 4, 1> F_y() {
+    // TODO tire model
+    return Eigen::Matrix<autodiff::dual, 4, 1>::Zero();
+}
+autodiff::dual M_z(Eigen::Matrix<autodiff::dual, 4, 1> f_y) {
+    return f_y(0) * 1.0 - f_y(1) * 1.0 + f_y(2) * 1.0 - f_y(3) * 1.0;
+}
 StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
-    // TODO implement the process model
-    return StateVec<autodiff::dual>::Zero();
+    // x=(x,y,v_x,v_y,psi,r,theta)
+    // u=(a_x,r_dot,delta,v_theta)
+    StateVec<autodiff::dual> out { };
+    out << x(2),
+        x(3),
+        x(5) * x(3) + u(0),
+        1 / m * F_y().sum() - x(5) * x(2),
+        1 / izz * M_z(F_y()) + u(1),
+        u(3);
+    return out;
 }
 
 constexpr double A_X_MIN = -1.0;
