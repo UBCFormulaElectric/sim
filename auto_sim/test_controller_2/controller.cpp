@@ -3,11 +3,12 @@
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/real.hpp>
 #include <autodiff/forward/real/eigen.hpp>
-#include <cassert>
-#include <optional>
 #include <proxsuite/proxqp/sparse/sparse.hpp>
 #include <proxsuite/proxqp/utils/random_qp_problems.hpp>
 #include <unsupported/Eigen/MatrixFunctions>
+
+#include <cassert>
+#include <optional>
 
 #include "path.hpp"
 
@@ -21,6 +22,11 @@ constexpr static isize dims = state_dims + control_dims;
 constexpr static double w_1 = 1.0; // TODO tune
 constexpr static double w_2 = 1.0; // TODO tune
 constexpr static double w_3 = 1.0; // TODO tune
+
+template <typename T>
+using StateVec = Eigen::Matrix<T, state_dims, 1>;
+template <typename T>
+using ControlVec = Eigen::Matrix<T, control_dims, 1>;
 
 // dimensions
 constexpr static isize n = T * dims;
@@ -38,7 +44,7 @@ struct MPCState {
         // TODO how to seed theta?
         return { state.x, state.y, state.v_x, state.v_y, state.psi, state.r, 0 };
     }
-    [[nodiscard]] Eigen::Matrix<double, state_dims, 1> into() const {
+    [[nodiscard]] StateVec<double> into() const {
         return { x, y, v_x, v_y, psi, r };
     }
 };
@@ -81,13 +87,13 @@ static Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
     const Eigen::Matrix2<autodiff::dual2nd> RR_theta = RR(theta);
     return 1 / spline_t(theta).squaredNorm() * RR_theta.transpose() * W * RR_theta;
 }
-static autodiff::dual2nd cost(const Eigen::Matrix<autodiff::dual2nd, state_dims, 1>& state) {
+static autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
     const Eigen::Vector2<autodiff::dual2nd> l_minus_x = spline_t(state(5)) - Eigen::Vector2<autodiff::dual2nd>(state(0), state(1));
     return autodiff::dual2nd(l_minus_x.transpose() * gamma(state(5)) * l_minus_x)
         - autodiff::dual2nd(w_3) * state(5);
 }
 
-static Eigen::Matrix<autodiff::dual, state_dims, 1> xi_prime(const Eigen::Matrix<autodiff::dual, state_dims, 1>& x, const Eigen::Matrix<autodiff::dual, control_dims, 1>& u) {
+static StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
     // TODO implement the process model
     return { };
 };
@@ -95,30 +101,45 @@ static Eigen::Matrix<autodiff::dual, state_dims, 1> xi_prime(const Eigen::Matrix
 void init() {
     // initialize the H, A, C matrices (memory wise I imagine)
     sparse::SparseMat<bool, isize> H_mask(n, n), A_mask(n_eq, n), C_mask(n_ineq, n);
-    for (isize t = 0; t < T; t++) {
-        for (isize i = 0; i < n; i++) {
-            for (isize j = 0; j < n; j++) {
-                H_mask.coeffRef(state_dims * t + i, state_dims + dims * t + j) = true;
+
+    {
+        std::vector<Eigen::Triplet<bool>> H_triplet;
+        for (isize t = 0; t < T; t++) {
+            for (isize i = 0; i < n; i++) {
+                for (isize j = 0; j < n; j++) {
+                    H_triplet.emplace_back(state_dims * t + i, state_dims + dims * t + j, true);
+                }
             }
         }
+        H_mask.setFromTriplets(H_triplet.begin(), H_triplet.end());
     }
-    for (isize t = 0; t < T; t++) {
-        for (isize i = 0; i < n_eq; i++) {
-            for (isize j = 0; j < n; j++) {
-                A_mask.coeffRef(i, j) = true;
+    {
+        std::vector<Eigen::Triplet<bool>> A_triplet;
+        for (isize t = 0; t < T; t++) {
+            for (isize i = 0; i < n_eq; i++) {
+                for (isize j = 0; j < n; j++) {
+                    A_triplet.emplace_back(state_dims * t + i, dims * t + j, true);
+                }
+            }
+            for (isize i = 0; i < state_dims; i++) {
+                A_triplet.emplace_back(state_dims * t + i, dims * t + i, true);
             }
         }
-        for (isize i = 0; i < state_dims; i++) {
-            A_mask.coeffRef(state_dims * t + i, dims * t + i) = true;
+        A_mask.setFromTriplets(A_triplet.begin(), A_triplet.end());
+    }
+    {
+        std::vector<Eigen::Triplet<bool>> C_triplet;
+        for (isize i = 0; i < n_ineq; i++) {
+            C_triplet.emplace_back(i, state_dims + i, true);
         }
+        C_mask.setFromTriplets(C_triplet.begin(), C_triplet.end());
     }
-    for (isize i = 0; i < n_ineq; i++) {
-        C_mask.coeffRef(i, state_dims + i) = true;
-    }
+
     qp_optional = std::make_optional<sparse::QP<double, isize>>(H_mask, A_mask, C_mask);
     H = H_mask.cast<double>();
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
+    // TODO populate constraints lower and upper
 
     // populate the identity matrices inside of A
     for (isize t = 1; t < T; t++) {
@@ -128,6 +149,7 @@ void init() {
     }
 }
 
+static Eigen::Matrix<double, T * dims, 1> last_result;
 sparse::Vec<double> compute(const VehicleState& ve) {
     // t.adj will contain the adj list
     if (not qp_optional.has_value()) {
@@ -136,27 +158,26 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     assert(qp_optional.has_value());
     sparse::QP<double, isize>& qp = qp_optional.value();
 
-    static Eigen::Matrix<double, T * dims, 1> last_result;
+    // populuate b vector with vehicle state
+    const StateVec<double> ve_m = MPCState::from(ve).into();
+    b.segment(0, state_dims) = ve_m;
 
     for (isize i = 0; i < T; i++) {
         // we use last_result directly implying that the movement between iterations is sufficiently small
         // to not require a new seed for the optimization algorithm
-        Eigen::Matrix<double, state_dims, 1> x_i = last_result.segment<state_dims>(i * dims);
+        StateVec<double> x_i = last_result.segment<state_dims>(i * dims);
 
         // calculate
-        Eigen::Matrix<double, state_dims, 1> grad_f { };
+        StateVec<double> grad_f { };
         Eigen::Matrix<double, state_dims, state_dims> H_x_i { };
         {
-            Eigen::Matrix<autodiff::dual2nd, state_dims, 1> x_i_d;
-            for (isize j = 0; j < state_dims; j++) {
-                x_i_d(j) = x_i(j);
-            }
+            StateVec<autodiff::dual2nd> x_i_d = x_i.cast<autodiff::dual2nd>();
             autodiff::dual2nd f_x;
             autodiff::hessian(cost, autodiff::wrt(x_i_d), autodiff::at(x_i_d), f_x, grad_f, H_x_i);
         }
         // construct
         const Eigen::Matrix<double, state_dims, state_dims> P_i = 1 / 2 * H_x_i;
-        const Eigen::Matrix<double, state_dims, 1> q_i = grad_f - H_x_i * x_i;
+        const StateVec<double> q_i = grad_f - H_x_i * x_i;
 
         for (isize j = 0; j < state_dims; j++) {
             for (isize k = 0; k < state_dims; k++) {
@@ -166,20 +187,15 @@ sparse::Vec<double> compute(const VehicleState& ve) {
         for (isize j = 0; j < state_dims; j++) {
             g.coeffRef(state_dims + i * state_dims + j) = q_i(j);
         }
-    }
 
-    // populuate b vector with vehicle state
-    const Eigen::Matrix<double, state_dims, 1> ve_m = MPCState::from(ve).into();
-    for (isize j = 0; j < state_dims; j++) {
-        b.coeffRef(j) = ve_m(j);
-    }
+        if (i < 1) {
+            continue;
+        }
 
-    for (isize i = 1; i < T; i++) {
         // populate A, b
-        Eigen::Matrix<double, state_dims, 1> x_i = last_result.segment<state_dims>(i * dims + 0);
-        Eigen::Matrix<double, control_dims, 1> u_i = last_result.segment<control_dims>(i * dims + state_dims);
-        Eigen::Matrix<autodiff::dual, state_dims, 1> x_i_dual;
-        Eigen::Matrix<autodiff::dual, control_dims, 1> u_i_dual;
+        ControlVec<double> u_i = last_result.segment<control_dims>(i * dims + state_dims);
+        StateVec<autodiff::dual> x_i_dual;
+        ControlVec<autodiff::dual> u_i_dual;
         for (isize j = 0; j < state_dims; j++) {
             x_i_dual(j) = x_i(j);
         }
@@ -187,12 +203,12 @@ sparse::Vec<double> compute(const VehicleState& ve) {
             u_i_dual(j) = u_i(j);
         }
 
-        Eigen::Matrix<autodiff::dual, state_dims, 1> xi_prime_at;
+        StateVec<autodiff::dual> xi_prime_at;
         const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_i_dual), autodiff::at(x_i_dual, u_i_dual), xi_prime_at);
         const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_i_dual), autodiff::at(x_i_dual, u_i_dual), xi_prime_at);
 
-        const Eigen::Matrix<double, state_dims, 1> o = xi_prime(x_i_dual, u_i_dual).cast<double>();
-        const Eigen::Matrix<double, state_dims, 1> r = o - A_c * x_i - B_c * u_i;
+        const StateVec<double> o = xi_prime(x_i_dual, u_i_dual).cast<double>();
+        const StateVec<double> r = o - A_c * x_i - B_c * u_i;
 
         static constexpr isize ee_s = state_dims + control_dims + 1;
         Eigen::Matrix<double, ee_s, ee_s> ee { };
