@@ -72,6 +72,20 @@ veh.MOTOR_TEMP_C        = 80;   % degC, motor temperature fed to the motor model
 veh.MOTOR_I_MAX_A       = 105;  % A, motor peak current
 veh.INVERTER_V_MARGIN_V = 30;   % V
 
+% Motor and inverter sound (driver_sim audio, see motor_sound.m)
+veh.MOTOR_POLE_PAIRS       = 5;     % AMK DD5-14-10-POW: 10 poles
+veh.GEAR_MESH_ORDER_SUN    = 16.6;  % sun/planet mesh frequency / motor shaft frequency
+veh.GEAR_MESH_ORDER_RING   = 6.1;   % planet/ring mesh frequency / motor shaft frequency
+% Both orders are measured from recordings of the car (ratios to the order-10 electrical line); they fit a
+% stepped-planet gearbox with an ~18-tooth sun and ~87-tooth ring. Exact values from the tooth counts:
+% sun order = Z_sun * (1 - 1/GEAR_RATIO), ring order = Z_ring / GEAR_RATIO.
+veh.MOTOR_SOUND_VOLUME     = 1.0;   % overall loudness; ~1 keeps the limiter nearly linear
+veh.MOTOR_SOUND_PITCH_SCALE = 1.12; % multiplies every tone frequency; tune by ear (1.12 = 2 semitones up, 0.5 = one octave down)
+veh.MOTOR_SOUND_FRAME_S    = 0.02;  % s, audio frame length = call interval of the Motor Sound block
+                                    % (longer = fewer audio underruns; 960 samples at 48 kHz)
+veh.ROAD_NOISE_SCALE       = 0.2;   % wind / road noise relative to the on-board phone recording (1 = as recorded,
+                                    % which includes wind buffeting on the microphone; lower = more whine)
+
 % Brakes (the brake disc and pad data live in the tire block with the full_norm.tir parameters and are set there)
 veh.MAX_BRAKE_PRESSURE_PA = [600000, 600000, 300000, 300000];  % Pa, [FL FR RL RR]
 
