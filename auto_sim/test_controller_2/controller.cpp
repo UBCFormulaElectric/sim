@@ -11,6 +11,7 @@
 #include <optional>
 
 #include "path.hpp"
+#include "tire_model.hpp"
 
 using namespace proxsuite::proxqp;
 
@@ -110,9 +111,16 @@ autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
         - autodiff::dual2nd(w_3) * theta;
 }
 
-Eigen::Matrix<autodiff::dual, 4, 1> F_y() {
-    // TODO tire model
-    return Eigen::Matrix<autodiff::dual, 4, 1>::Zero();
+Eigen::Matrix<autodiff::dual, 4, 1> F_y(const autodiff::dual delta, const autodiff::dual vx, const autodiff::dual vy) {
+    const autodiff::dual rear_alpha = -atan2(vy, vx);
+    const autodiff::dual front_alpha = delta + rear_alpha;
+    constexpr double f_z = 890.0; // TODO compute from vehicle state
+    return {
+        tire_model.computeCombinedFy_N(f_z, front_alpha, autodiff::dual(0.0)),
+        tire_model.computeCombinedFy_N(f_z, front_alpha, autodiff::dual(0.0)),
+        tire_model.computeCombinedFy_N(f_z, rear_alpha, autodiff::dual(0.0)),
+        tire_model.computeCombinedFy_N(f_z, rear_alpha, autodiff::dual(0.0)),
+    };
 }
 autodiff::dual M_z(Eigen::Matrix<autodiff::dual, 4, 1> f_y) {
     return f_y(0) * 1.0 - f_y(1) * 1.0 + f_y(2) * 1.0 - f_y(3) * 1.0;
@@ -120,12 +128,13 @@ autodiff::dual M_z(Eigen::Matrix<autodiff::dual, 4, 1> f_y) {
 StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
     // x=(x,y,v_x,v_y,psi,r,theta)
     // u=(a_x,r_dot,delta,v_theta)
+    const Eigen::Matrix<autodiff::dual, 4, 1> F_y_i = F_y(u(2), x(0), x(1));
     StateVec<autodiff::dual> out { };
     out << x(2),
         x(3),
         x(5) * x(3) + u(0),
-        1 / m * F_y().sum() - x(5) * x(2),
-        1 / izz * M_z(F_y()) + u(1),
+        1 / m * F_y_i.sum() - x(5) * x(2),
+        1 / izz * M_z(F_y_i) + u(1),
         u(3);
     return out;
 }

@@ -111,6 +111,7 @@ add_executable(test
         path.cpp
         sim.cpp
         test.cpp
+        tire_model.cpp
         ${ALGLIB_SOURCES}
 )
 target_link_libraries(test PRIVATE CDT_interface Eigen3::Eigen alglib_interface autodiff_interface proxsuite)
