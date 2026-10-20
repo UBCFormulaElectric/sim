@@ -3,7 +3,7 @@
 
 #include <proxsuite/proxqp/sparse/sparse.hpp>
 
-constexpr inline proxsuite::linalg::veg::isize T = 10; // timesteps
+constexpr inline proxsuite::linalg::veg::isize T = 20; // timesteps
 
 void init();
 

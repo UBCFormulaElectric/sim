@@ -25,7 +25,7 @@ constexpr isize control_dims = vehicle_model::control_dims; // control dimension
 constexpr isize dims = state_dims + control_dims;
 constexpr double w_1 = 1.0; // TODO tune
 constexpr double w_2 = 1.0; // TODO tune
-constexpr double w_3 = 1.0; // TODO tune
+constexpr double w_3 = 3.0; // progress reward. TODO tune (above ~10 the car runs off the track at the first corner)
 // control effort weights, these also keep the QP strictly convex in the controls. TODO tune
 constexpr double w_a_x = 0.01;
 constexpr double w_r_dot = 0.01;
@@ -110,8 +110,8 @@ Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
 autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
     const autodiff::dual2nd& theta = state(6);
     const Eigen::Vector2<autodiff::dual2nd> l_minus_x = spline_t(theta) - Eigen::Vector2<autodiff::dual2nd>(state(0), state(1));
-    return autodiff::dual2nd(l_minus_x.transpose() * gamma(theta) * l_minus_x)
-        - autodiff::dual2nd(w_3) * theta;
+    // the progress reward (w_3) is applied to the final step only, in compute()
+    return autodiff::dual2nd(l_minus_x.transpose() * gamma(theta) * l_minus_x);
 }
 
 constexpr double A_X_MIN = -10.0;
@@ -170,6 +170,10 @@ void init() {
 
     qp_optional = std::make_optional<sparse::QP<double, isize>>(H_mask, A_mask, C_mask);
     qp_optional->settings.max_iter = 1000;
+    // each outer iteration can otherwise run up to 1500 inner iterations, which made failed solves take seconds
+    qp_optional->settings.max_iter_in = 100;
+    // consecutive problems are very similar, so start from the previous solution
+    qp_optional->settings.initial_guess = InitialGuessStatus::WARM_START_WITH_PREVIOUS_RESULT;
     H = H_mask.cast<double>();
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
@@ -336,6 +340,10 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
             b.coeffRef(i * state_dims + j) = -ee(j, dims);
         }
     }
+
+    // reward the progress made by the end of the horizon. rewarding theta at every step instead counts early progress
+    // once per remaining step, which makes the pull towards speed grow with T^2 while the tracking costs only grow with T
+    g.coeffRef((T - 1) * dims + 6) -= w_3;
 
     // print the size of all the vectors and matrices below
     std::cout << "H size: " << H.rows() << "x" << H.cols() << std::endl;
