@@ -55,6 +55,11 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
         .def("v1", &CDT::Edge::v1)
         .def("v2", &CDT::Edge::v2);
 
+    // export the cones
+    m.def("get_cones", []() { return cones; }, py::return_value_policy::reference, R"pbdoc()
+        Get the list of cones
+    )pbdoc");
+
     // py::class_<Location>(m, "Location")
     //     .def(py::init<double, double>())
     //     .def_readwrite("x", &Location::x)

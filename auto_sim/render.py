@@ -2,7 +2,7 @@
 import pygame
 from scipy.spatial.transform import Rotation as R
 from constants import VEHICLE_WIDTH_M
-from Controller import VehicleState, Cone, ConeColor, get_center_points, project, spline_t
+from Controller import VehicleState, Cone, ConeColor, get_center_points, project, spline_t, get_center_line_length, get_offline_edges, get_boundary_edges, get_cones
 from math import ceil, degrees
 import numpy as np
 
@@ -109,6 +109,57 @@ def drawTrajectory(screen: pygame.Surface, trajectory: list[VehicleState], vehic
 	for point in points:
 		pygame.draw.circle(screen, color, point, 4)
 
+def draw_triangulation(screen: pygame.Surface, vehicle_state: VehicleState):
+	cones = get_cones()
+	for edge in get_offline_edges():
+		v1, v2 = cones[edge.v1()], cones[edge.v2()]
+		default_colour = "#676767"
+		pygame.draw.line(screen, default_colour,
+			transform(v1.x, v1.y, vehicle_state),
+			transform(v2.x, v2.y, vehicle_state), 2
+		)
+	for edge in get_boundary_edges():
+		v1, v2 = cones[edge.v1()], cones[edge.v2()]
+		default_colour = "#FF0000"
+		if v1.c == v2.c:
+			match v1.c:
+				case ConeColor.BLUE:
+					default_colour = "blue"
+				case ConeColor.YELLOW:
+					default_colour = "yellow"
+		pygame.draw.line(screen, default_colour,
+			transform(v1.x, v1.y, vehicle_state),
+			transform(v2.x, v2.y, vehicle_state), 1
+		)
+
+def draw_center_line(screen: pygame.Surface, vehicle_state: VehicleState):
+	center_points = get_center_points()
+	for point in center_points:
+		pygame.draw.circle(screen, "white", transform(point.x, point.y, vehicle_state), 2)
+	for i in range(len(center_points)):
+		v1, v2 = center_points[i], center_points[(i+1) % len(center_points)] # returns cone objects
+		default_colour = "#676767"
+		pygame.draw.line(screen, default_colour,
+			transform(v1.x, v1.y, vehicle_state),
+			transform(v2.x, v2.y, vehicle_state), 2
+		)
+
+def draw_spline(screen: pygame.Surface, vehicle_state: VehicleState):
+    steps = 100
+    dt = get_center_line_length() / steps
+    for t in range(steps):
+        x1 = spline_t(t * dt)
+        x2 = spline_t((t + 1) * dt)
+        pygame.draw.line(screen, "#676767",
+                         transform(x1[0], x1[1], vehicle_state),
+                         transform(x2[0], x2[1], vehicle_state), 2)
+
+
+def draw_path_projection(screen: pygame.Surface, vehicle_state: VehicleState):
+	at_t = project(vehicle_state.x, vehicle_state.y)
+	x = spline_t(at_t)
+	pygame.draw.circle(screen, "red", transform(x.x, x.y, vehicle_state), 5)
+
 at_t = None
 def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface, trajectory: list[VehicleState]):
 	global w, h, at_t
@@ -120,54 +171,10 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 
 	# pygame.draw.circle(screen, "white", transform(0, 0, vehicle_state), 5)
 
-	# DRAW TRIANGULATION
-	# for edge in get_offline_edges():
-	# 	v1, v2 = cones[edge.v1()], cones[edge.v2()]
-	# 	default_colour = "#676767"
-	# 	pygame.draw.line(screen, default_colour,
-	# 		transform(v1.x, v1.y, vehicle_state),
-	# 		transform(v2.x, v2.y, vehicle_state), 2
-	# 	)
-	# for edge in get_boundary_edges():
-	# 	v1, v2 = cones[edge.v1()], cones[edge.v2()]
-	# 	default_colour = "#FF0000"
-	# 	if v1.c == v2.c:
-	# 		match v1.c:
-	# 			case ConeColor.BLUE:
-	# 				default_colour = "blue"
-	# 			case ConeColor.YELLOW:
-	# 				default_colour = "yellow"
-	# 	pygame.draw.line(screen, default_colour,
-	# 		transform(v1.x, v1.y, vehicle_state),
-	# 		transform(v2.x, v2.y, vehicle_state), 1
-	# 	)
-
-	# DRAW CENTER LINE
-	# center_points = get_center_points()
-	# for point in center_points:
-	# 	pygame.draw.circle(screen, "white", transform(point.x, point.y, vehicle_state), 2)
-	# for i in range(len(center_points)):
-	# 	v1, v2 = center_points[i], center_points[(i+1) % len(center_points)] # returns cone objects
-	# 	default_colour = "#676767"
-	# 	pygame.draw.line(screen, default_colour,
-	# 		transform(v1.x, v1.y, vehicle_state),
-	# 		transform(v2.x, v2.y, vehicle_state), 2
-	# 	)
-
-	# DRAW PATH PROJECTION
-	# at_t = project(vehicle_state.x, vehicle_state.y)
-	# x = spline_t(at_t)
-	# pygame.draw.circle(screen, "red", transform(x.x, x.y, vehicle_state), 5)
-
-	# DRAW SPLINE
-	# steps = 100
-	# dt = get_center_line_length() / steps
-	# for t in range(steps):
-	# 	x1 = spline_t(t * dt)
-	# 	x2= spline_t((t + 1) * dt)
-	# 	pygame.draw.line(screen, "#676767",
-	# 			   transform(x1.x, x1.y, vehicle_state),
-	# 			   transform(x2.x, x2.y, vehicle_state), 2)
+	# draw_triangulation(screen, vehicle_state)
+	# draw_center_line(screen, vehicle_state)
+	# draw_path_projection(screen, vehicle_state)
+	# draw_spline(screen, vehicle_state)
 
 	for cone in cones:
 		pygame.draw.circle(
