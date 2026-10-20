@@ -21,6 +21,7 @@ search_dirs = [build_dir] + [
 
 
 def pick_artifact(candidates: list[Path]) -> Path:
+    print("CANDIDATES", candidates)
     """Choose which build to install when several configs have been built."""
     find_artifact_name = next((c for c in candidates if c.name == artifact_name), None)
     if find_artifact_name is not None:
