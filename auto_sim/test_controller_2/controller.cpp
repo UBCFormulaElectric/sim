@@ -7,6 +7,7 @@
 #include <proxsuite/proxqp/sparse/sparse.hpp>
 #include <unsupported/Eigen/MatrixFunctions>
 
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <optional>
@@ -30,7 +31,11 @@ constexpr isize dims = state_dims + control_dims;
 constexpr double w_1 = 1.0; // TODO tune
 constexpr double w_2 = 1.0; // TODO tune
 constexpr double w_3 = 1.0; // TODO tune
-constexpr double w_u = 0.01; // control effort weight, keeps the QP strictly convex in the controls. TODO tune
+// control effort weights, these also keep the QP strictly convex in the controls. TODO tune
+constexpr double w_a_x = 0.01;
+constexpr double w_r_dot = 0.01;
+constexpr double w_delta = 70.0; // below ~50 the steering oscillates in closed loop, above this the car starts to understeer
+constexpr double w_v_theta = 0.01;
 
 template <typename T>
 using StateVec = Eigen::Matrix<T, state_dims, 1>;
@@ -206,9 +211,10 @@ void init() {
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
     // the control cost is constant, so it only needs to be set once (compute() only overwrites the state blocks)
+    const ControlVec<double> w_u { w_a_x, w_r_dot, w_delta, w_v_theta };
     for (isize t = 0; t < T; t++) {
         for (isize i = 0; i < control_dims; i++) {
-            H.coeffRef(dims * t + state_dims + i, dims * t + state_dims + i) = w_u;
+            H.coeffRef(dims * t + state_dims + i, dims * t + state_dims + i) = w_u(i);
         }
     }
     g.setZero();
@@ -234,7 +240,7 @@ void init() {
 }
 
 static Eigen::Matrix<double, T * dims, 1> last_result;
-sparse::Vec<double> compute(const VehicleState& ve) {
+sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
     const bool first_call = not qp_optional.has_value();
     if (first_call) {
         init();
@@ -242,15 +248,27 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     assert(qp_optional.has_value());
     sparse::QP<double, isize>& qp = qp_optional.value();
 
+    if (not first_call) {
+        // the previous solution started dt_s ago, so shift it forward in time to line it up with the current state.
+        // steps are linearly interpolated, and the final step is held past the end of the previous horizon
+        const Eigen::Matrix<double, T * dims, 1> prev = last_result;
+        for (isize i = 0; i < T; i++) {
+            const double s = std::min(static_cast<double>(i) + std::max(dt_s, 0.0) / deltaT_s, static_cast<double>(T - 1));
+            const isize k = std::min(static_cast<isize>(s), T - 2);
+            const double frac = s - static_cast<double>(k);
+            last_result.segment<dims>(i * dims) = (1 - frac) * prev.segment<dims>(k * dims) + frac * prev.segment<dims>((k + 1) * dims);
+        }
+    }
+
     double theta = 0;
     if (first_call) {
         // there is nothing to seed the projection with, so use the robust (but slow) global search
         theta = project(ve.x, ve.y);
     } else {
-        // the previous solution's predicted progress for this step is a good seed for the fast local search.
+        // the shifted previous solution's progress at the current time is a good seed for the fast local search.
         // project() returns theta within a single lap, but theta keeps growing past the end of the center line, so unwrap
         // the projection onto the lap closest to the previous solution to keep the warm start consistent across the seam
-        const double theta_prev = last_result(dims + 6);
+        const double theta_prev = last_result(6);
         const double theta_prev_wrapped = theta_prev - center_line_length * std::floor(theta_prev / center_line_length);
         theta = theta_prev + std::remainder(project(ve.x, ve.y, theta_prev_wrapped) - theta_prev_wrapped, center_line_length);
     }
@@ -269,8 +287,7 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     }
 
     for (isize i = 0; i < T; i++) {
-        // we use last_result directly implying that the movement between iterations is sufficiently small
-        // to not require a new seed for the optimization algorithm
+        // linearize around the (time shifted) previous solution
         StateVec<double> x_i = last_result.segment<state_dims>(i * dims);
 
         // calculate

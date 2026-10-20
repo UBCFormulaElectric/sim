@@ -1,3 +1,4 @@
+#include <pybind11/eigen.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 
@@ -27,7 +28,8 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     py::class_<ControlOutput>(m, "ControlOutput")
         .def(py::init<double, double, double>())
         .def_readwrite("ax", &ControlOutput::ax)
-        .def_readwrite("omega_dot", &ControlOutput::omega_dot);
+        .def_readwrite("omega_dot", &ControlOutput::omega_dot)
+        .def_readwrite("delta", &ControlOutput::delta);
 
     py::class_<VehicleState>(m, "VehicleState")
         .def(py::init<>())
@@ -59,7 +61,13 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     //     .def_readwrite("y", &Location::y);
 
     m.def("compute", &compute, R"pbdoc(
-        Compute control output
+        Compute the optimal trajectory, given the vehicle state and the seconds elapsed since the previous call
+    )pbdoc");
+    m.def("get_control", &get_control, R"pbdoc(
+        Extract the next control output from the trajectory returned by compute()
+    )pbdoc");
+    m.def("get_trajectory", &get_trajectory, R"pbdoc(
+        Extract the predicted future vehicle states from the trajectory returned by compute()
     )pbdoc");
 
     m.def("compute_path", &compute_path_from_percepted_cones, R"pbdoc()
@@ -90,7 +98,7 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     m.def("project_seeded", [](const double a, const double b, const double c) { return project(a, b, c); }, R"pbdoc()
         Project a point onto a line defined by two points, with a seed for the optimization algorithm
     )pbdoc");
-    m.def("spline_t", &spline_t, R"pbdoc()
+    m.def("spline_t", [](const double t) -> Eigen::Vector2d { return spline_t(autodiff::dual2nd(t)).cast<double>(); }, R"pbdoc()
         Get the point on the center line corresponding to a given t
     )pbdoc");
 

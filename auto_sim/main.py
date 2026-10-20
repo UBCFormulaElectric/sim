@@ -1,7 +1,8 @@
 import pygame
-from Controller import compute, sim_step, Cone, ConeColor, VehicleState, mock_perception, compute_path
+from Controller import compute, get_control, get_trajectory, sim_step, Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t
 from render import init, render_world
 import ctypes
+import math
 import platform
 
 # dpi awareness for windows - prevents blurry rendering on high dpi displays
@@ -51,6 +52,12 @@ def simulate_cone_detection(state: VehicleState):
         ran = True
     return CONE_POSITIONS
 
+# point the car along the center line, so that progress along the path means driving forward
+simulate_cone_detection(vehicle_state)
+start_t = project(vehicle_state.x, vehicle_state.y)
+p0, p1 = spline_t(start_t), spline_t(start_t + 0.1)
+vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
+
 while running:
     # handle events
     # pygame.QUIT event means the user clicked X to close your window
@@ -62,13 +69,15 @@ while running:
 
     # this is what is running on the 
     detected_cones = simulate_cone_detection(vehicle_state)
-    controls = compute(vehicle_state)
+    dt = clock.get_time()  # ms since the previous frame, and so since the previous compute()
+    output = compute(vehicle_state, dt / 1000)
+    controls = get_control(output)
+    trajectory = get_trajectory(output)
 
     # closing the SIL loop
-    dt = clock.get_time()
     screen.fill("black")
     sim_step(vehicle_state, controls, dt)
-    render_world(vehicle_state, CONE_POSITIONS, screen)
+    render_world(vehicle_state, CONE_POSITIONS, screen, trajectory)
 
     # flip() the display to put your work on screen
     pygame.display.flip()

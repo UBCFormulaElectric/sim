@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
     constexpr double x0 = 0, y0 = 0;
     const Eigen::Vector2d heading = spline_t_prime(autodiff::dual2nd(project(x0, y0))).cast<double>();
     const VehicleState state(x0, y0, std::atan2(heading.y(), heading.x()), 1, 0, 0);
-    const proxsuite::proxqp::sparse::Vec<double> computation_output = compute(state);
+    const proxsuite::proxqp::sparse::Vec<double> computation_output = compute(state, 0.0); // first call, so there is no previous solution to shift
     const auto out = get_control(computation_output);
     std::cout << "Control Output: ax=" << out.ax << ", omega_dot=" << out.omega_dot << std::endl;
 }

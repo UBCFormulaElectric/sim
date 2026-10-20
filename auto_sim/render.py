@@ -26,7 +26,7 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 	Transforms from global coordinates to screen space coordinates
 	"""
 	global w, h
-	r = R.from_euler('z', -vehicle_state.theta + np.pi/2, degrees=False)
+	r = R.from_euler('z', -vehicle_state.psi + np.pi/2, degrees=False)
 	rel_x, rel_y = x - vehicle_state.x, y - vehicle_state.y
 	rotated_x, rotated_y,_ = r.apply([rel_x, rel_y, 0])
 	screen_x = int(w / 2 + rotated_x * PIXELS_PER_M)
@@ -59,9 +59,9 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), sp
 	screen_grid = pygame.surface.Surface((w, h), pygame.SRCALPHA)
 
 	# Calculate grid offset to align with world coordinates
-	r = R.from_euler('z', -state.theta + np.pi/2, degrees=False)
+	r = R.from_euler('z', -state.psi + np.pi/2, degrees=False)
 	x, y = r.apply([state.x % spacing_m, state.y % spacing_m, 0])[:2]
-	rotated_surf: pygame.Surface = pygame.transform.rotate(grid_surf, degrees(-state.theta - np.pi/2))
+	rotated_surf: pygame.Surface = pygame.transform.rotate(grid_surf, degrees(-state.psi - np.pi/2))
 	screen_grid.blit(rotated_surf, rotated_surf.get_rect(center=(
 		w/2 - x * PIXELS_PER_M,
 		0.67 * h + y * PIXELS_PER_M
@@ -87,7 +87,7 @@ def drawGrid(screen: pygame.Surface, state: VehicleState, color=(45, 45, 45), sp
 # 	global spline_surface	
 # 	if spline_surface is None:
 # 		spline_surface = create_spline_surface()
-# 	rotated_surf: pygame.Surface = pygame.transform.rotate(spline_surface, degrees(-vehicle_state.theta - np.pi/2))
+# 	rotated_surf: pygame.Surface = pygame.transform.rotate(spline_surface, degrees(-vehicle_state.psi - np.pi/2))
 # 	screen.blit(rotated_surf, rotated_surf.get_rect(center=transform(-16.5, -15.5, vehicle_state)))
 	
 
@@ -100,8 +100,17 @@ def int_to_color(value: ConeColor) -> str:
 		case _:
 			return "white"
 
+def drawTrajectory(screen: pygame.Surface, trajectory: list[VehicleState], vehicle_state: VehicleState, color="#00FF88"):
+	"""
+	Draws the future states predicted by the controller
+	"""
+	points = [transform(s.x, s.y, vehicle_state) for s in trajectory]
+	pygame.draw.lines(screen, color, False, points, 2)
+	for point in points:
+		pygame.draw.circle(screen, color, point, 4)
+
 at_t = None
-def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface):
+def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface, trajectory: list[VehicleState]):
 	global w, h, at_t
 	w, h = screen.get_width(), screen.get_height()
 
@@ -165,7 +174,10 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 			screen, int_to_color(cone.c),
 			transform(cone.x, cone.y, vehicle_state), 0.2 * PIXELS_PER_M
 		)
-	
+
+	# DRAW PREDICTED TRAJECTORY
+	drawTrajectory(screen, trajectory, vehicle_state)
+
 	car_rotated = pygame.transform.rotate(car,-90)
 	scale_factor = VEHICLE_WIDTH_M / car_rotated.get_width() * PIXELS_PER_M
 	car_scaled = pygame.transform.scale(car_rotated, (
