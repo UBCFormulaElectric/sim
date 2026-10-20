@@ -186,17 +186,10 @@ void init() {
     }
     g.setZero();
     b.setZero();
-    for (isize t = 0; t < T; t++) {
-        lower(t * control_dims) = A_X_MIN; // a_x lower bound
-        lower(t * control_dims + 1) = R_DOT_MIN; // r_dot
-        lower(t * control_dims + 2) = DELTA_MIN; // delta
-        lower(t * control_dims + 3) = V_THETA_MIN; // v_theta
-        upper(t * control_dims) = A_X_MAX; // a_x upper bound
-        upper(t * control_dims + 1) = R_DOT_MAX; // r_dot
-        upper(t * control_dims + 2) = DELTA_MAX; // delta
-        upper(t * control_dims + 3) = V_THETA_MAX; // v_theta
-        // TODO constraints for tire grip limits
-    }
+    // (a_x, r_dot, delta, v_theta) bounds, repeated for every step
+    lower = ControlVec<double> { A_X_MIN, R_DOT_MIN, DELTA_MIN, V_THETA_MIN }.replicate<T, 1>();
+    upper = ControlVec<double> { A_X_MAX, R_DOT_MAX, DELTA_MAX, V_THETA_MAX }.replicate<T, 1>();
+    // TODO constraints for tire grip limits
 
     // populate the identity matrices inside of A
     for (isize t = 1; t < T; t++) {
@@ -247,10 +240,7 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
     if (first_call) {
         // there is no previous solution to linearize around yet, so hold the current state across the horizon.
         // (an all zero seed puts v=0 into the dynamics, which makes the jacobians NaN)
-        for (isize i = 0; i < T; i++) {
-            last_result.segment<state_dims>(i * dims) = ve_m;
-            last_result.segment<control_dims>(i * dims + state_dims).setZero();
-        }
+        last_result = (Eigen::Matrix<double, dims, 1>() << ve_m, ControlVec<double>::Zero()).finished().replicate<T, 1>();
     }
 
     for (isize i = 0; i < T; i++) {
@@ -280,9 +270,7 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
                 H.coeffRef(i * dims + j, i * dims + k) = P_i(j, k);
             }
         }
-        for (isize j = 0; j < state_dims; j++) {
-            g.coeffRef(i * dims + j) = q_i(j);
-        }
+        g.segment<state_dims>(i * dims) = q_i;
 
         if (i < 1) {
             continue;
@@ -291,40 +279,21 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         // populate A, b with the step i-1 -> i dynamics, so linearize around the previous solution at step i-1
         const StateVec<double> x_prev = last_result.segment<state_dims>((i - 1) * dims);
         const ControlVec<double> u_prev = last_result.segment<control_dims>((i - 1) * dims + state_dims);
-        StateVec<autodiff::dual> x_prev_dual;
-        ControlVec<autodiff::dual> u_prev_dual;
-        for (isize j = 0; j < state_dims; j++) {
-            x_prev_dual(j) = x_prev(j);
-        }
-        for (isize j = 0; j < control_dims; j++) {
-            u_prev_dual(j) = u_prev(j);
-        }
+        StateVec<autodiff::dual> x_prev_dual = x_prev.cast<autodiff::dual>();
+        ControlVec<autodiff::dual> u_prev_dual = u_prev.cast<autodiff::dual>();
 
         StateVec<autodiff::dual> xi_prime_at;
         const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(vehicle_model::xi_prime<autodiff::dual>, autodiff::wrt(x_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
         const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(vehicle_model::xi_prime<autodiff::dual>, autodiff::wrt(u_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
-
-        const StateVec<double> o = vehicle_model::xi_prime(x_prev_dual, u_prev_dual).cast<double>();
-        const StateVec<double> r = o - A_c * x_prev - B_c * u_prev;
+        const StateVec<double> g = vehicle_model::xi_prime(x_prev_dual, u_prev_dual).cast<double>() - A_c * x_prev - B_c * u_prev;
 
         static constexpr isize ee_s = state_dims + control_dims + 1;
         // must be explicitly zeroed (Eigen's {} leaves it uninitialized): the bottom rows have to be 0 for exp() to give the ZOH discretization
         Eigen::Matrix<double, ee_s, ee_s> ee = Eigen::Matrix<double, ee_s, ee_s>::Zero();
-        // populate ee from A_c
-        for (isize j = 0; j < state_dims; j++) {
-            for (isize k = 0; k < state_dims; k++) {
-                ee.coeffRef(j, k) = A_c(j, k);
-            }
-        }
-        // populate ee from B_c
-        for (isize j = 0; j < state_dims; j++) {
-            for (isize k = 0; k < control_dims; k++) {
-                ee.coeffRef(j, state_dims + k) = B_c(j, k);
-            }
-        }
-        for (isize j = 0; j < state_dims; j++) {
-            ee.coeffRef(j, dims) = r(j);
-        }
+        // populate ee with [A_c B_c g] in the top rows
+        ee.block<state_dims, state_dims>(0, 0) = A_c;
+        ee.block<state_dims, control_dims>(0, state_dims) = B_c;
+        ee.block<state_dims, 1>(0, dims) = g;
         ee *= deltaT_s;
         ee = ee.exp();
 
@@ -336,9 +305,7 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         }
 
         // populate the b vector with ee
-        for (isize j = 0; j < state_dims; j++) {
-            b.coeffRef(i * state_dims + j) = -ee(j, dims);
-        }
+        b.segment<state_dims>(i * state_dims) = -ee.block<state_dims, 1>(0, dims);
     }
 
     // reward the progress made by the end of the horizon. rewarding theta at every step instead counts early progress
