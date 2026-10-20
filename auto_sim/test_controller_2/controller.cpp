@@ -345,15 +345,6 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
     // once per remaining step, which makes the pull towards speed grow with T^2 while the tracking costs only grow with T
     g.coeffRef((T - 1) * dims + 6) -= w_3;
 
-    // print the size of all the vectors and matrices below
-    std::cout << "H size: " << H.rows() << "x" << H.cols() << std::endl;
-    std::cout << "g size: " << g.size() << std::endl;
-    std::cout << "A size: " << A.rows() << "x" << A.cols() << std::endl;
-    std::cout << "b size: " << b.size() << std::endl;
-    std::cout << "C size: " << C.rows() << "x" << C.cols() << std::endl;
-    std::cout << "lower size: " << lower.size() << std::endl;
-    std::cout << "upper size: " << upper.size() << std::endl;
-
     // populate H, g, A, b
     qp.update(H, g, A, b, C, lower, upper);
     // solve
