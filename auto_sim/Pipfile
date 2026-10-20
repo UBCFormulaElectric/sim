@@ -4,7 +4,7 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-pygame = "*"
+pygame-ce = "*"
 numpy = "*"
 scipy = "*"
 setuptools = "*"
@@ -15,4 +15,4 @@ casadi = "==3.6.7"
 [dev-packages]
 
 [requires]
-python_version = "3.13"
+python_version = "3.15"

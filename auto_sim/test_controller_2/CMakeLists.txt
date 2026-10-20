@@ -12,6 +12,48 @@ file(
 )
 include(${CMAKE_CURRENT_BINARY_DIR}/cmake/CPM.cmake)
 
+# Build against the pipenv's interpreter so the module's ABI matches the env that
+# setup.py installs into. Turn off to pick an interpreter with -DPython_EXECUTABLE.
+option(USE_PIPENV_PYTHON "Build against the Python of the enclosing pipenv" ON)
+if (USE_PIPENV_PYTHON)
+    find_program(PIPENV_EXECUTABLE pipenv)
+    if (PIPENV_EXECUTABLE)
+        # Inside `pipenv shell`/`pipenv run` this returns the active env, otherwise
+        # the env of the nearest Pipfile above this directory.
+        execute_process(
+                COMMAND ${PIPENV_EXECUTABLE} --py
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                OUTPUT_VARIABLE PIPENV_PYTHON
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+                ERROR_QUIET
+                RESULT_VARIABLE PIPENV_RESULT
+        )
+    endif ()
+    if (PIPENV_EXECUTABLE AND PIPENV_RESULT EQUAL 0 AND EXISTS "${PIPENV_PYTHON}")
+        execute_process(
+                COMMAND ${PIPENV_PYTHON} --version
+                OUTPUT_VARIABLE PIPENV_PYTHON_VERSION
+                OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+        message(STATUS "Using pipenv Python: ${PIPENV_PYTHON} (${PIPENV_PYTHON_VERSION})")
+        # A pipenv can be recreated in place with a different Python, which neither
+        # FindPython nor pybind11 notice, so drop their cached results on any change.
+        set(PIPENV_PYTHON_ID "${PIPENV_PYTHON} ${PIPENV_PYTHON_VERSION}")
+        if (NOT PIPENV_PYTHON_ID STREQUAL PIPENV_PYTHON_ID_LAST)
+            get_cmake_property(cache_vars CACHE_VARIABLES)
+            list(FILTER cache_vars INCLUDE REGEX "^_?Python_|^PYTHON_(IS_DEBUG|MODULE_)")
+            foreach (var IN LISTS cache_vars)
+                unset(${var} CACHE)
+            endforeach ()
+            set(PIPENV_PYTHON_ID_LAST "${PIPENV_PYTHON_ID}" CACHE INTERNAL "")
+        endif ()
+        # FORCE so a previously cached interpreter doesn't win over the pipenv one.
+        set(Python_EXECUTABLE "${PIPENV_PYTHON}" CACHE FILEPATH "Python interpreter" FORCE)
+    else ()
+        message(WARNING "Could not locate a pipenv Python, falling back to FindPython's default")
+    endif ()
+endif ()
+
 CPMAddPackage(
         NAME pybind11
         GIT_REPOSITORY https://github.com/pybind/pybind11.git
