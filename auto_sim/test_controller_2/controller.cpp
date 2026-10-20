@@ -114,11 +114,12 @@ autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
         - autodiff::dual2nd(w_3) * theta;
 }
 
-Eigen::Matrix<autodiff::dual, 4, 1> F_y(const autodiff::dual delta, const autodiff::dual vx, const autodiff::dual vy) {
+Eigen::Matrix<autodiff::dual, 4, 1> F_y(const autodiff::dual delta, const autodiff::dual vx, const autodiff::dual vy, const autodiff::dual r) {
     // floor v_x so the slip angle (and its derivative, which is 0/0 at v=0) stays finite near standstill
     const autodiff::dual vx_reg = vx < SLIP_REGULARIZATION_SPEED_MPS ? autodiff::dual(SLIP_REGULARIZATION_SPEED_MPS) : vx;
-    const autodiff::dual rear_alpha = -atan2(vy, vx_reg);
-    const autodiff::dual front_alpha = delta + rear_alpha;
+    // the lateral velocity at each axle includes the yaw rate's contribution, which is what damps the yaw motion
+    const autodiff::dual front_alpha = delta - atan2(vy + DIST_FRONT_AXLE_CG_m * r, vx_reg);
+    const autodiff::dual rear_alpha = -atan2(vy - DIST_REAR_AXLE_CG_m * r, vx_reg);
     constexpr double f_z = 890.0; // TODO compute from vehicle state
     return {
         tire_model.computeCombinedFy_N(f_z, front_alpha, autodiff::dual(0.0)),
@@ -128,12 +129,12 @@ Eigen::Matrix<autodiff::dual, 4, 1> F_y(const autodiff::dual delta, const autodi
     };
 }
 autodiff::dual M_z(Eigen::Matrix<autodiff::dual, 4, 1> f_y) {
-    return f_y(0) * 1.0 - f_y(1) * 1.0 + f_y(2) * 1.0 - f_y(3) * 1.0;
+    return DIST_FRONT_AXLE_CG_m * (f_y(0) + f_y(1)) - DIST_REAR_AXLE_CG_m * (f_y(2) + f_y(3));
 }
 StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
     // x=(x,y,v_x,v_y,psi,r,theta)
     // u=(a_x,r_dot,delta,v_theta)
-    const Eigen::Matrix<autodiff::dual, 4, 1> F_y_i = F_y(u(2), x(2), x(3));
+    const Eigen::Matrix<autodiff::dual, 4, 1> F_y_i = F_y(u(2), x(2), x(3), x(5));
     StateVec<autodiff::dual> out { };
     out << x(2) * cos(x(4)) - x(3) * sin(x(4)), // x_dot: body frame velocity rotated into the global frame
         x(2) * sin(x(4)) + x(3) * cos(x(4)), // y_dot
@@ -151,8 +152,8 @@ constexpr double R_DOT_MIN = -1.0;
 constexpr double R_DOT_MAX = 1.0;
 constexpr double DELTA_MIN = -0.5;
 constexpr double DELTA_MAX = 0.5;
-constexpr double V_THETA_MIN = -1.0;
-constexpr double V_THETA_MAX = 1.0;
+constexpr double V_THETA_MIN = -20.0;
+constexpr double V_THETA_MAX = 20.0;
 }
 
 void init() {
@@ -241,11 +242,18 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     assert(qp_optional.has_value());
     sparse::QP<double, isize>& qp = qp_optional.value();
 
-    // on the first call there is nothing to seed the projection with, so use the robust (but slow) global search.
-    // afterwards the previous solution's predicted progress for this step is a good seed for the fast local search.
-    const double theta = first_call
-        ? project(ve.x, ve.y)
-        : project(ve.x, ve.y, std::fmod(std::fmod(last_result(dims + 6), center_line_length) + center_line_length, center_line_length));
+    double theta = 0;
+    if (first_call) {
+        // there is nothing to seed the projection with, so use the robust (but slow) global search
+        theta = project(ve.x, ve.y);
+    } else {
+        // the previous solution's predicted progress for this step is a good seed for the fast local search.
+        // project() returns theta within a single lap, but theta keeps growing past the end of the center line, so unwrap
+        // the projection onto the lap closest to the previous solution to keep the warm start consistent across the seam
+        const double theta_prev = last_result(dims + 6);
+        const double theta_prev_wrapped = theta_prev - center_line_length * std::floor(theta_prev / center_line_length);
+        theta = theta_prev + std::remainder(project(ve.x, ve.y, theta_prev_wrapped) - theta_prev_wrapped, center_line_length);
+    }
 
     // populuate b vector with vehicle state
     const StateVec<double> ve_m = MPCState::from(ve, theta).into();
@@ -385,12 +393,13 @@ ControlOutput get_control(const sparse::Vec<double>& trajectory_control) {
 std::array<VehicleState, T> get_trajectory(const sparse::Vec<double>& trajectory_control) {
     std::array<VehicleState, T> out;
     for (isize i = 0; i < T; i++) {
+        // VehicleState is (x, y, psi, v_x, v_y, r) but the MPC state is (x, y, v_x, v_y, psi, r, theta)
         out[i] = VehicleState {
             trajectory_control[i * dims],
             trajectory_control[i * dims + 1],
+            trajectory_control[i * dims + 4],
             trajectory_control[i * dims + 2],
             trajectory_control[i * dims + 3],
-            trajectory_control[i * dims + 4],
             trajectory_control[i * dims + 5],
         };
     }

@@ -178,7 +178,8 @@ static autodiff::dual2nd chain_rule(const autodiff::dual2nd& t, const double f, 
 }
 
 Eigen::Vector2<autodiff::dual2nd> spline_t(const autodiff::dual2nd& t_dual) {
-    const double t = autodiff::val(t_dual);
+    // the center line is a closed loop, so wrap t onto a single lap instead of extrapolating past the ends of the spline
+    const double t = mod(autodiff::val(t_dual), center_line_length);
     double l_x, l_dx, l_ddx;
     alglib::spline1ddiff(x_spline, t, l_x, l_dx, l_ddx);
     double l_y, l_dy, l_ddy;
@@ -188,7 +189,7 @@ Eigen::Vector2<autodiff::dual2nd> spline_t(const autodiff::dual2nd& t_dual) {
 }
 
 Eigen::Vector2<autodiff::dual2nd> spline_t_prime(const autodiff::dual2nd& t_dual) {
-    const double t = autodiff::val(t_dual);
+    const double t = mod(autodiff::val(t_dual), center_line_length);
 
     double l_x, l_dx, l_ddx;
     alglib::spline1ddiff(x_spline, t, l_x, l_dx, l_ddx);
