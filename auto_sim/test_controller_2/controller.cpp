@@ -12,21 +12,16 @@
 #include <cmath>
 #include <optional>
 
-#include "constants.hpp"
 #include "path.hpp"
-#include "tire_model.hpp"
+#include "vehicle_model.hpp"
 
 using namespace proxsuite::proxqp;
 
 namespace {
-// constants
-constexpr double m = CAR_MASS_AT_CG_KG; // mass of the vehicle
-constexpr double izz = CAR_YAW_MOMENT_INERTIA_KGM2; // moment of inertia about the z-axis
-
 // parameters
 constexpr double deltaT_s = 0.1; // time represented per step
-constexpr isize state_dims = 7; // state dimensions (x,y,v_x,v_y,psi,r,theta)
-constexpr isize control_dims = 4; // control dimensions (a_x,r_dot,delta,v_theta)
+constexpr isize state_dims = vehicle_model::state_dims; // state dimensions (x,y,v_x,v_y,psi,r,theta)
+constexpr isize control_dims = vehicle_model::control_dims; // control dimensions (a_x,r_dot,delta,v_theta)
 constexpr isize dims = state_dims + control_dims;
 constexpr double w_1 = 1.0; // TODO tune
 constexpr double w_2 = 1.0; // TODO tune
@@ -119,39 +114,7 @@ autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
         - autodiff::dual2nd(w_3) * theta;
 }
 
-Eigen::Matrix<autodiff::dual, 4, 1> F_y(const autodiff::dual delta, const autodiff::dual vx, const autodiff::dual vy, const autodiff::dual r) {
-    // floor v_x so the slip angle (and its derivative, which is 0/0 at v=0) stays finite near standstill
-    const autodiff::dual vx_reg = vx < SLIP_REGULARIZATION_SPEED_MPS ? autodiff::dual(SLIP_REGULARIZATION_SPEED_MPS) : vx;
-    // the lateral velocity at each axle includes the yaw rate's contribution, which is what damps the yaw motion
-    const autodiff::dual front_alpha = delta - atan2(vy + DIST_FRONT_AXLE_CG_m * r, vx_reg);
-    const autodiff::dual rear_alpha = -atan2(vy - DIST_REAR_AXLE_CG_m * r, vx_reg);
-    constexpr double f_z = 890.0; // TODO compute from vehicle state
-    return {
-        tire_model.computeCombinedFy_N(f_z, front_alpha, autodiff::dual(0.0)),
-        tire_model.computeCombinedFy_N(f_z, front_alpha, autodiff::dual(0.0)),
-        tire_model.computeCombinedFy_N(f_z, rear_alpha, autodiff::dual(0.0)),
-        tire_model.computeCombinedFy_N(f_z, rear_alpha, autodiff::dual(0.0)),
-    };
-}
-autodiff::dual M_z(Eigen::Matrix<autodiff::dual, 4, 1> f_y) {
-    return DIST_FRONT_AXLE_CG_m * (f_y(0) + f_y(1)) - DIST_REAR_AXLE_CG_m * (f_y(2) + f_y(3));
-}
-StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
-    // x=(x,y,v_x,v_y,psi,r,theta)
-    // u=(a_x,r_dot,delta,v_theta)
-    const Eigen::Matrix<autodiff::dual, 4, 1> F_y_i = F_y(u(2), x(2), x(3), x(5));
-    StateVec<autodiff::dual> out { };
-    out << x(2) * cos(x(4)) - x(3) * sin(x(4)), // x_dot: body frame velocity rotated into the global frame
-        x(2) * sin(x(4)) + x(3) * cos(x(4)), // y_dot
-        x(5) * x(3) + u(0), // v_x_dot
-        1 / m * F_y_i.sum() - x(5) * x(2), // v_y_dot
-        x(5), // psi_dot
-        1 / izz * M_z(F_y_i) + u(1), // r_dot
-        u(3); // theta_dot
-    return out;
-}
-
-constexpr double A_X_MIN = -1.0;
+constexpr double A_X_MIN = -10.0;
 constexpr double A_X_MAX = 1.0;
 constexpr double R_DOT_MIN = -1.0;
 constexpr double R_DOT_MAX = 1.0;
@@ -334,10 +297,10 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         }
 
         StateVec<autodiff::dual> xi_prime_at;
-        const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
-        const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
+        const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(vehicle_model::xi_prime<autodiff::dual>, autodiff::wrt(x_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
+        const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(vehicle_model::xi_prime<autodiff::dual>, autodiff::wrt(u_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
 
-        const StateVec<double> o = xi_prime(x_prev_dual, u_prev_dual).cast<double>();
+        const StateVec<double> o = vehicle_model::xi_prime(x_prev_dual, u_prev_dual).cast<double>();
         const StateVec<double> r = o - A_c * x_prev - B_c * u_prev;
 
         static constexpr isize ee_s = state_dims + control_dims + 1;
