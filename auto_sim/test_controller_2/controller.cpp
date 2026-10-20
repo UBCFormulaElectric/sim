@@ -8,8 +8,10 @@
 #include <unsupported/Eigen/MatrixFunctions>
 
 #include <cassert>
+#include <cmath>
 #include <optional>
 
+#include "constants.hpp"
 #include "path.hpp"
 #include "tire_model.hpp"
 
@@ -17,8 +19,8 @@ using namespace proxsuite::proxqp;
 
 namespace {
 // constants
-constexpr double m = 1.0; // mass of the vehicle
-constexpr double izz = 1.0; // moment of inertia about the z-axis
+constexpr double m = CAR_MASS_AT_CG_KG; // mass of the vehicle
+constexpr double izz = CAR_YAW_MOMENT_INERTIA_KGM2; // moment of inertia about the z-axis
 
 // parameters
 constexpr double deltaT_s = 0.1; // time represented per step
@@ -28,6 +30,7 @@ constexpr isize dims = state_dims + control_dims;
 constexpr double w_1 = 1.0; // TODO tune
 constexpr double w_2 = 1.0; // TODO tune
 constexpr double w_3 = 1.0; // TODO tune
+constexpr double w_u = 0.01; // control effort weight, keeps the QP strictly convex in the controls. TODO tune
 
 template <typename T>
 using StateVec = Eigen::Matrix<T, state_dims, 1>;
@@ -46,8 +49,8 @@ struct MPCState {
     double psi;
     double r;
     double theta;
-    static MPCState from(const VehicleState& state) {
-        // TODO how to seed theta?
+    // theta is the vehicle's progress along the center line, i.e. the projection of (x, y) onto it
+    static MPCState from(const VehicleState& state, const double theta) {
         return MPCState {
             .x = state.x,
             .y = state.y,
@@ -55,7 +58,7 @@ struct MPCState {
             .v_y = state.v_y,
             .psi = state.psi,
             .r = state.r,
-            .theta = 0,
+            .theta = theta,
         };
     }
     [[nodiscard]] StateVec<double> into() const {
@@ -112,7 +115,9 @@ autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
 }
 
 Eigen::Matrix<autodiff::dual, 4, 1> F_y(const autodiff::dual delta, const autodiff::dual vx, const autodiff::dual vy) {
-    const autodiff::dual rear_alpha = -atan2(vy, vx);
+    // floor v_x so the slip angle (and its derivative, which is 0/0 at v=0) stays finite near standstill
+    const autodiff::dual vx_reg = vx < SLIP_REGULARIZATION_SPEED_MPS ? autodiff::dual(SLIP_REGULARIZATION_SPEED_MPS) : vx;
+    const autodiff::dual rear_alpha = -atan2(vy, vx_reg);
     const autodiff::dual front_alpha = delta + rear_alpha;
     constexpr double f_z = 890.0; // TODO compute from vehicle state
     return {
@@ -128,14 +133,15 @@ autodiff::dual M_z(Eigen::Matrix<autodiff::dual, 4, 1> f_y) {
 StateVec<autodiff::dual> xi_prime(const StateVec<autodiff::dual>& x, const ControlVec<autodiff::dual>& u) {
     // x=(x,y,v_x,v_y,psi,r,theta)
     // u=(a_x,r_dot,delta,v_theta)
-    const Eigen::Matrix<autodiff::dual, 4, 1> F_y_i = F_y(u(2), x(0), x(1));
+    const Eigen::Matrix<autodiff::dual, 4, 1> F_y_i = F_y(u(2), x(2), x(3));
     StateVec<autodiff::dual> out { };
-    out << x(2),
-        x(3),
-        x(5) * x(3) + u(0),
-        1 / m * F_y_i.sum() - x(5) * x(2),
-        1 / izz * M_z(F_y_i) + u(1),
-        u(3);
+    out << x(2) * cos(x(4)) - x(3) * sin(x(4)), // x_dot: body frame velocity rotated into the global frame
+        x(2) * sin(x(4)) + x(3) * cos(x(4)), // y_dot
+        x(5) * x(3) + u(0), // v_x_dot
+        1 / m * F_y_i.sum() - x(5) * x(2), // v_y_dot
+        x(5), // psi_dot
+        1 / izz * M_z(F_y_i) + u(1), // r_dot
+        u(3); // theta_dot
     return out;
 }
 
@@ -160,6 +166,9 @@ void init() {
                 for (isize j = 0; j < state_dims; j++) {
                     H_triplet.emplace_back(dims * t + i, dims * t + j, true);
                 }
+            }
+            for (isize i = 0; i < control_dims; i++) {
+                H_triplet.emplace_back(dims * t + state_dims + i, dims * t + state_dims + i, true);
             }
         }
         H_mask.setFromTriplets(H_triplet.begin(), H_triplet.end());
@@ -191,9 +200,16 @@ void init() {
     }
 
     qp_optional = std::make_optional<sparse::QP<double, isize>>(H_mask, A_mask, C_mask);
+    qp_optional->settings.max_iter = 1000;
     H = H_mask.cast<double>();
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
+    // the control cost is constant, so it only needs to be set once (compute() only overwrites the state blocks)
+    for (isize t = 0; t < T; t++) {
+        for (isize i = 0; i < control_dims; i++) {
+            H.coeffRef(dims * t + state_dims + i, dims * t + state_dims + i) = w_u;
+        }
+    }
     g.setZero();
     b.setZero();
     for (isize t = 0; t < T; t++) {
@@ -218,16 +234,31 @@ void init() {
 
 static Eigen::Matrix<double, T * dims, 1> last_result;
 sparse::Vec<double> compute(const VehicleState& ve) {
-    // t.adj will contain the adj list
-    if (not qp_optional.has_value()) {
+    const bool first_call = not qp_optional.has_value();
+    if (first_call) {
         init();
     }
     assert(qp_optional.has_value());
     sparse::QP<double, isize>& qp = qp_optional.value();
 
+    // on the first call there is nothing to seed the projection with, so use the robust (but slow) global search.
+    // afterwards the previous solution's predicted progress for this step is a good seed for the fast local search.
+    const double theta = first_call
+        ? project(ve.x, ve.y)
+        : project(ve.x, ve.y, std::fmod(std::fmod(last_result(dims + 6), center_line_length) + center_line_length, center_line_length));
+
     // populuate b vector with vehicle state
-    const StateVec<double> ve_m = MPCState::from(ve).into();
+    const StateVec<double> ve_m = MPCState::from(ve, theta).into();
     b.segment(0, state_dims) = ve_m;
+
+    if (first_call) {
+        // there is no previous solution to linearize around yet, so hold the current state across the horizon.
+        // (an all zero seed puts v=0 into the dynamics, which makes the jacobians NaN)
+        for (isize i = 0; i < T; i++) {
+            last_result.segment<state_dims>(i * dims) = ve_m;
+            last_result.segment<control_dims>(i * dims + state_dims).setZero();
+        }
+    }
 
     for (isize i = 0; i < T; i++) {
         // we use last_result directly implying that the movement between iterations is sufficiently small
@@ -265,26 +296,28 @@ sparse::Vec<double> compute(const VehicleState& ve) {
             continue;
         }
 
-        // populate A, b
-        ControlVec<double> u_i = last_result.segment<control_dims>(i * dims + state_dims);
-        StateVec<autodiff::dual> x_i_dual;
-        ControlVec<autodiff::dual> u_i_dual;
+        // populate A, b with the step i-1 -> i dynamics, so linearize around the previous solution at step i-1
+        const StateVec<double> x_prev = last_result.segment<state_dims>((i - 1) * dims);
+        const ControlVec<double> u_prev = last_result.segment<control_dims>((i - 1) * dims + state_dims);
+        StateVec<autodiff::dual> x_prev_dual;
+        ControlVec<autodiff::dual> u_prev_dual;
         for (isize j = 0; j < state_dims; j++) {
-            x_i_dual(j) = x_i(j);
+            x_prev_dual(j) = x_prev(j);
         }
         for (isize j = 0; j < control_dims; j++) {
-            u_i_dual(j) = u_i(j);
+            u_prev_dual(j) = u_prev(j);
         }
 
         StateVec<autodiff::dual> xi_prime_at;
-        const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_i_dual), autodiff::at(x_i_dual, u_i_dual), xi_prime_at);
-        const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_i_dual), autodiff::at(x_i_dual, u_i_dual), xi_prime_at);
+        const Eigen::Matrix<double, state_dims, state_dims> A_c = autodiff::jacobian(xi_prime, autodiff::wrt(x_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
+        const Eigen::Matrix<double, state_dims, control_dims> B_c = autodiff::jacobian(xi_prime, autodiff::wrt(u_prev_dual), autodiff::at(x_prev_dual, u_prev_dual), xi_prime_at);
 
-        const StateVec<double> o = xi_prime(x_i_dual, u_i_dual).cast<double>();
-        const StateVec<double> r = o - A_c * x_i - B_c * u_i;
+        const StateVec<double> o = xi_prime(x_prev_dual, u_prev_dual).cast<double>();
+        const StateVec<double> r = o - A_c * x_prev - B_c * u_prev;
 
         static constexpr isize ee_s = state_dims + control_dims + 1;
-        Eigen::Matrix<double, ee_s, ee_s> ee { };
+        // must be explicitly zeroed (Eigen's {} leaves it uninitialized): the bottom rows have to be 0 for exp() to give the ZOH discretization
+        Eigen::Matrix<double, ee_s, ee_s> ee = Eigen::Matrix<double, ee_s, ee_s>::Zero();
         // populate ee from A_c
         for (isize j = 0; j < state_dims; j++) {
             for (isize k = 0; k < state_dims; k++) {
@@ -329,8 +362,14 @@ sparse::Vec<double> compute(const VehicleState& ve) {
     qp.update(H, g, A, b, C, lower, upper);
     // solve
     qp.solve();
-    // use qp.results.x to seed the next iteration
-    last_result = qp.results.x.segment(0, T * dims);
+    if (qp.results.info.status != QPSolverOutput::PROXQP_SOLVED) {
+        // keep the previous seed rather than linearizing the next call around a bad solution
+        std::cerr << "MPC QP did not converge: status " << static_cast<int>(qp.results.info.status)
+                  << " after " << qp.results.info.iter << " iterations" << std::endl;
+    } else {
+        // use qp.results.x to seed the next iteration
+        last_result = qp.results.x.segment(0, T * dims);
+    }
 
     return qp.results.x;
 }
