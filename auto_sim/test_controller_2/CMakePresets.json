@@ -2,17 +2,31 @@
   "version": 10,
   "configurePresets": [
     {
-      "name": "default_win",
+      "name": "win",
       "generator": "Visual Studio 17 2022",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
       }
     },
     {
-      "name": "default_unix",
+      "name": "unix",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build",
       "cacheVariables": {
+      }
+    },
+    {
+      "name": "win_rel",
+      "inherits": "win",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+    {
+      "name": "unix_rel",
+      "inherits": "unix",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
       }
     }
   ]
