@@ -175,10 +175,10 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 
 	# pygame.draw.circle(screen, "white", transform(0, 0, vehicle_state), 5)
 
-	# draw_triangulation(screen, vehicle_state)
+	draw_triangulation(screen, vehicle_state)
 	# draw_center_line(screen, vehicle_state)
 	# draw_path_projection(screen, vehicle_state)
-	# draw_spline(screen, vehicle_state)
+	draw_spline(screen, vehicle_state)
 
 	for cone in cones:
 		pygame.draw.circle(

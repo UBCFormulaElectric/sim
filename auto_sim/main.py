@@ -66,21 +66,21 @@ vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
 controller_init(Parameters(
     deltaT_s=0.1,
     w_1=30.0,
-    w_2=10.0,
+    w_2=1.5,
     w_3=7.0,
     w_a_x=0.01,
     w_r_dot=0.01,
     w_delta=10.0,
     w_v_theta=0.01,
     w_prox=300.0,
-    A_X_MIN=-1.0,
-    A_X_MAX=1.0,
+    A_X_MIN=-5.0,
+    A_X_MAX=5.0,
     R_DOT_MIN=0.0,
     R_DOT_MAX=0.0,
     DELTA_MIN=-0.5,
     DELTA_MAX=0.5,
     V_THETA_MIN=0.0,
-    V_THETA_MAX=8.0,
+    V_THETA_MAX=100.0,
 ))
 
 while running:
