@@ -11,6 +11,7 @@ setuptools = "*"
 pybind11 = "*"
 requests = "*"
 casadi = "==3.6.7"
+matplotlib = "*"
 
 [dev-packages]
 
