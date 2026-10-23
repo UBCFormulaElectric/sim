@@ -1,5 +1,9 @@
 #include "controller.hpp"
 
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+
 #include <autodiff/forward/dual.hpp>
 #include <autodiff/forward/real.hpp>
 #include <autodiff/forward/real/eigen.hpp>
@@ -18,19 +22,12 @@
 using namespace proxsuite::proxqp;
 
 namespace {
-// parameters
-constexpr double deltaT_s = 0.1; // time represented per step
+Parameters p;
+
+// dimensions
 constexpr isize state_dims = vehicle_model::state_dims; // state dimensions (x,y,v_x,v_y,psi,r,theta)
 constexpr isize control_dims = vehicle_model::control_dims; // control dimensions (a_x,r_dot,delta,v_theta)
 constexpr isize dims = state_dims + control_dims;
-constexpr double w_1 = 1.0; // TODO tune
-constexpr double w_2 = 1.0; // TODO tune
-constexpr double w_3 = 3.0; // progress reward. TODO tune (above ~10 the car runs off the track at the first corner)
-// control effort weights, these also keep the QP strictly convex in the controls. TODO tune
-constexpr double w_a_x = 0.01;
-constexpr double w_r_dot = 0.01;
-constexpr double w_delta = 70.0; // below ~50 the steering oscillates in closed loop, above this the car starts to understeer
-constexpr double w_v_theta = 0.01;
 
 template <typename T>
 using StateVec = Eigen::Matrix<T, state_dims, 1>;
@@ -103,7 +100,7 @@ Eigen::Matrix2<autodiff::dual2nd> RR(const autodiff::dual2nd& theta) {
     return (Eigen::Matrix2<autodiff::dual2nd>() << l_prime[0], -l_prime[1], l_prime[1], l_prime[0]).finished();
 }
 Eigen::Matrix2<autodiff::dual2nd> gamma(const autodiff::dual2nd& theta) {
-    const static Eigen::Matrix2<autodiff::dual2nd> W { { w_1, 0 }, { 0, w_2 } };
+    const Eigen::Matrix2<autodiff::dual2nd> W { { p.w_1, 0 }, { 0, p.w_2 } };
     const Eigen::Matrix2<autodiff::dual2nd> RR_theta = RR(theta);
     return 1 / spline_t_prime(theta).squaredNorm() * RR_theta.transpose() * W * RR_theta;
 }
@@ -114,17 +111,16 @@ autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
     return autodiff::dual2nd(l_minus_x.transpose() * gamma(theta) * l_minus_x);
 }
 
-constexpr double A_X_MIN = -10.0;
-constexpr double A_X_MAX = 1.0;
-constexpr double R_DOT_MIN = -1.0;
-constexpr double R_DOT_MAX = 1.0;
-constexpr double DELTA_MIN = -0.5;
-constexpr double DELTA_MAX = 0.5;
-constexpr double V_THETA_MIN = -20.0;
-constexpr double V_THETA_MAX = 20.0;
+bool first_call = true;
 }
 
-void init() {
+
+void init(const std::optional<Parameters> pp) {
+    if (pp.has_value()) {
+        p = pp.value();
+    }
+    first_call = true;
+
     // initialize the H, A, C matrices (memory wise I imagine)
     sparse::SparseMat<bool, isize> H_mask(n, n), A_mask(n_eq, n), C_mask(n_ineq, n);
 
@@ -178,7 +174,7 @@ void init() {
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
     // the control cost is constant, so it only needs to be set once (compute() only overwrites the state blocks)
-    const ControlVec<double> w_u { w_a_x, w_r_dot, w_delta, w_v_theta };
+    const ControlVec<double> w_u { p.w_a_x, p.w_r_dot, p.w_delta, p.w_v_theta };
     for (isize t = 0; t < T; t++) {
         for (isize i = 0; i < control_dims; i++) {
             H.coeffRef(dims * t + state_dims + i, dims * t + state_dims + i) = w_u(i);
@@ -187,8 +183,8 @@ void init() {
     g.setZero();
     b.setZero();
     // (a_x, r_dot, delta, v_theta) bounds, repeated for every step
-    lower = ControlVec<double> { A_X_MIN, R_DOT_MIN, DELTA_MIN, V_THETA_MIN }.replicate<T, 1>();
-    upper = ControlVec<double> { A_X_MAX, R_DOT_MAX, DELTA_MAX, V_THETA_MAX }.replicate<T, 1>();
+    lower = ControlVec<double> { p.A_X_MIN, p.R_DOT_MIN, p.DELTA_MIN, p.V_THETA_MIN }.replicate<T, 1>();
+    upper = ControlVec<double> { p.A_X_MAX, p.R_DOT_MAX, p.DELTA_MAX, p.V_THETA_MAX }.replicate<T, 1>();
     // TODO constraints for tire grip limits
 
     // populate the identity matrices inside of A
@@ -201,8 +197,7 @@ void init() {
 
 static Eigen::Matrix<double, T * dims, 1> last_result;
 sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
-    const bool first_call = not qp_optional.has_value();
-    if (first_call) {
+    if (not qp_optional.has_value()) {
         init();
     }
     assert(qp_optional.has_value());
@@ -213,7 +208,7 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         // steps are linearly interpolated, and the final step is held past the end of the previous horizon
         const Eigen::Matrix<double, T * dims, 1> prev = last_result;
         for (isize i = 0; i < T; i++) {
-            const double s = std::min(static_cast<double>(i) + std::max(dt_s, 0.0) / deltaT_s, static_cast<double>(T - 1));
+            const double s = std::min(static_cast<double>(i) + std::max(dt_s, 0.0) / p.deltaT_s, static_cast<double>(T - 1));
             const isize k = std::min(static_cast<isize>(s), T - 2);
             const double frac = s - static_cast<double>(k);
             last_result.segment<dims>(i * dims) = (1 - frac) * prev.segment<dims>(k * dims) + frac * prev.segment<dims>((k + 1) * dims);
@@ -294,7 +289,7 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         ee.block<state_dims, state_dims>(0, 0) = A_c;
         ee.block<state_dims, control_dims>(0, state_dims) = B_c;
         ee.block<state_dims, 1>(0, dims) = g;
-        ee *= deltaT_s;
+        ee *= p.deltaT_s;
         ee = ee.exp();
 
         // populate the A matrix with ee
@@ -308,9 +303,19 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         b.segment<state_dims>(i * state_dims) = -ee.block<state_dims, 1>(0, dims);
     }
 
+    // trust region on the steering: add w_prox/2 * (delta_i - delta_bar_i)^2 to every step, where delta_bar_i is the
+    // steering the dynamics above were linearized around. the other controls enter the dynamics linearly, so their
+    // linearization is exact and damping them only stops the plan from speeding up.
+    // H and g persist between calls, so assign rather than accumulate
+    constexpr isize delta_index = state_dims + 2;
+    for (isize i = 0; i < T; i++) {
+        H.coeffRef(i * dims + delta_index, i * dims + delta_index) = p.w_delta + p.w_prox;
+        g(i * dims + delta_index) = -p.w_prox * last_result(i * dims + delta_index);
+    }
+
     // reward the progress made by the end of the horizon. rewarding theta at every step instead counts early progress
     // once per remaining step, which makes the pull towards speed grow with T^2 while the tracking costs only grow with T
-    g.coeffRef((T - 1) * dims + 6) -= w_3;
+    g.coeffRef((T - 1) * dims + 6) -= p.w_3;
 
     // populate H, g, A, b
     qp.update(H, g, A, b, C, lower, upper);
@@ -324,6 +329,8 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         // use qp.results.x to seed the next iteration
         last_result = qp.results.x.segment(0, T * dims);
     }
+
+    first_call = false;
 
     return qp.results.x;
 }

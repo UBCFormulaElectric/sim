@@ -7,19 +7,23 @@ from math import ceil, degrees
 import numpy as np
 
 PIXELS_PER_M = 	20.0
+UI_SCALE = 1.0  # physical pixels per OS point, 2.0 on retina displays
 w: int
 h: int
 
 car: pygame.Surface
 vignette: pygame.Surface
 
-def init():
-	global car, vignette
+def init(ui_scale: float = 1.0):
+	global car, vignette, UI_SCALE, PIXELS_PER_M
+	UI_SCALE = ui_scale
+	PIXELS_PER_M *= ui_scale
 	car = pygame.image.load('fsae.png').convert_alpha()
 	vignette_image = pygame.image.load('vignette.png').convert_alpha()
 	vignette_image = pygame.transform.scale(vignette_image, (30 * PIXELS_PER_M,30 * PIXELS_PER_M))
-	vignette = pygame.Surface((3000,3000), pygame.SRCALPHA)
-	vignette.blit(vignette_image, vignette_image.get_rect(center=(1500,1500)))
+	vignette_size = int(3000 * ui_scale)
+	vignette = pygame.Surface((vignette_size, vignette_size), pygame.SRCALPHA)
+	vignette.blit(vignette_image, vignette_image.get_rect(center=(vignette_size/2, vignette_size/2)))
 
 def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int]:
 	"""
@@ -37,9 +41,9 @@ def transform(x: float, y: float, vehicle_state: VehicleState) -> tuple[int, int
 def create_grid_surface(l: int, spacing_px: int, color: str) -> pygame.Surface:
 	grid_surf = pygame.Surface((2*l,2*l), pygame.SRCALPHA)
 	for x in range(0, 2*l, spacing_px):
-		pygame.draw.line(grid_surf, color, (x, 0), (x, 2*l), 2)
+		pygame.draw.line(grid_surf, color, (x, 0), (x, 2*l), round(2 * UI_SCALE))
 	for y in range(0, 2*l, spacing_px):
-		pygame.draw.line(grid_surf, color, (0, y), (2*l, y), 2)
+		pygame.draw.line(grid_surf, color, (0, y), (2*l, y), round(2 * UI_SCALE))
 	return grid_surf
 
 old_state = None, None, None
@@ -105,9 +109,9 @@ def drawTrajectory(screen: pygame.Surface, trajectory: list[VehicleState], vehic
 	Draws the future states predicted by the controller
 	"""
 	points = [transform(s.x, s.y, vehicle_state) for s in trajectory]
-	pygame.draw.lines(screen, color, False, points, 2)
+	pygame.draw.lines(screen, color, False, points, round(2 * UI_SCALE))
 	for point in points:
-		pygame.draw.circle(screen, color, point, 4)
+		pygame.draw.circle(screen, color, point, 4 * UI_SCALE)
 
 def draw_triangulation(screen: pygame.Surface, vehicle_state: VehicleState):
 	cones = get_cones()

@@ -64,7 +64,38 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     //     .def(py::init<double, double>())
     //     .def_readwrite("x", &Location::x)
     //     .def_readwrite("y", &Location::y);
+    
+    py::class_<Parameters>(m, "Parameters")
+        // Parameters(w_3=5.0, ...) overrides individual defaults. unknown names raise an AttributeError
+        .def(py::init([](const py::kwargs& kwargs) {
+            Parameters params;
+            const py::object self = py::cast(&params, py::return_value_policy::reference);
+            for (const auto& [key, value] : kwargs) {
+                py::setattr(self, key, value);
+            }
+            return params;
+        }))
+        .def_readwrite("deltaT_s", &Parameters::deltaT_s)
+        .def_readwrite("w_1", &Parameters::w_1)
+        .def_readwrite("w_2", &Parameters::w_2)
+        .def_readwrite("w_3", &Parameters::w_3)
+        .def_readwrite("w_a_x", &Parameters::w_a_x)
+        .def_readwrite("w_r_dot", &Parameters::w_r_dot)
+        .def_readwrite("w_delta", &Parameters::w_delta)
+        .def_readwrite("w_v_theta", &Parameters::w_v_theta)
+        .def_readwrite("w_prox", &Parameters::w_prox)
+        .def_readwrite("A_X_MIN", &Parameters::A_X_MIN)
+        .def_readwrite("A_X_MAX", &Parameters::A_X_MAX)
+        .def_readwrite("R_DOT_MIN", &Parameters::R_DOT_MIN)
+        .def_readwrite("R_DOT_MAX", &Parameters::R_DOT_MAX)
+        .def_readwrite("DELTA_MIN", &Parameters::DELTA_MIN)
+        .def_readwrite("DELTA_MAX", &Parameters::DELTA_MAX)
+        .def_readwrite("V_THETA_MIN", &Parameters::V_THETA_MIN)
+        .def_readwrite("V_THETA_MAX", &Parameters::V_THETA_MAX);
 
+    m.def("init", &init, py::arg("params") = py::none(), R"pbdoc(
+        Initialize the controller with optional parameters
+    )pbdoc");
     m.def("compute", &compute, R"pbdoc(
         Compute the optimal trajectory, given the vehicle state and the seconds elapsed since the previous call
     )pbdoc");

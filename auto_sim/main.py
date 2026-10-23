@@ -1,5 +1,5 @@
 import pygame
-from Controller import compute, get_control, get_trajectory, sim_step, Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t
+from Controller import compute, get_control, get_trajectory, sim_step, Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t, init as controller_init, Parameters
 from render import init, render_world
 import ctypes
 import math
@@ -24,12 +24,16 @@ with open("labels/0000001.txt", "r") as f:
 
 # pygame setup
 pygame.init()
-screen = pygame.display.set_mode((1900, 1200), pygame.RESIZABLE)
-pygame.display.set_caption('Autonomous Sim')
+# window size is in OS points; shrink it to fit the desktop (e.g. a 1728x1117 point retina macbook)
+desktop_w, desktop_h = pygame.display.get_desktop_sizes()[0]
+window_size = (min(1900, int(desktop_w * 0.9)), min(1200, int(desktop_h * 0.9)))
+# allow_high_dpi gives a framebuffer in physical pixels on retina macs instead of an upscaled (blurry) one
+window = pygame.Window('Autonomous Sim', window_size, resizable=True, allow_high_dpi=True)
+screen = window.get_surface()
 clock = pygame.time.Clock()
 running = True
 time: float = 0.0
-init()
+init(screen.get_width() / window.size[0])  # pixels per point, 2.0 on retina
 
 vehicle_state: VehicleState = VehicleState()
 # vehicle_state.v_y = 2.0
@@ -58,14 +62,36 @@ start_t = project(vehicle_state.x, vehicle_state.y)
 p0, p1 = spline_t(start_t), spline_t(start_t + 0.1)
 vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
 
+# tuned with tune.py: completes 3 laps at every frame time from 12 to 33 ms (~25.5 s laps, < 0.25 m from the center line)
+controller_init(Parameters(
+    deltaT_s=0.1,
+    w_1=30.0,
+    w_2=10.0,
+    w_3=7.0,
+    w_a_x=0.01,
+    w_r_dot=0.01,
+    w_delta=10.0,
+    w_v_theta=0.01,
+    w_prox=300.0,
+    A_X_MIN=-1.0,
+    A_X_MAX=1.0,
+    R_DOT_MIN=0.0,
+    R_DOT_MAX=0.0,
+    DELTA_MIN=-0.5,
+    DELTA_MAX=0.5,
+    V_THETA_MIN=0.0,
+    V_THETA_MAX=8.0,
+))
+
 while running:
     # handle events
     # pygame.QUIT event means the user clicked X to close your window
     for event in pygame.event.get():
-        if event.type == pygame.QUIT:
+        if event.type in (pygame.QUIT, pygame.WINDOWCLOSE):
             running = False
         elif event.type == pygame.KEYDOWN:
             handle_key(event.key, vehicle_state)
+    screen = window.get_surface()  # the surface is replaced when the window is resized
 
     # this is what is running on the 
     detected_cones = simulate_cone_detection(vehicle_state)
@@ -80,7 +106,7 @@ while running:
     render_world(vehicle_state, CONE_POSITIONS, screen, trajectory)
 
     # flip() the display to put your work on screen
-    pygame.display.flip()
+    window.flip()
     clock.tick(60)  # limits FPS to 60
 
 pygame.quit()
