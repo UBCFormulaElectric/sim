@@ -1,8 +1,9 @@
 import pygame
-from Controller import sim_step, Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t, init as controller_init, Parameters
+from Controller import Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t, init as controller_init, Parameters
 from render import init, render_world
 from control_plots import ControlPlots
 from controller_thread import ControllerThread
+from sim_thread import SimThread
 import ctypes
 import math
 import platform
@@ -34,7 +35,6 @@ window = pygame.Window('Autonomous Sim', window_size, resizable=True, allow_high
 screen = window.get_surface()
 clock = pygame.time.Clock()
 running = True
-time: float = 0.0
 ui_scale = screen.get_width() / window.size[0]  # pixels per point, 2.0 on retina
 # ui_scale = 1.0
 init(ui_scale)
@@ -66,8 +66,8 @@ start_t = project(vehicle_state.x, vehicle_state.y)
 p0, p1 = spline_t(start_t), spline_t(start_t + 0.1)
 vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
 
-# tuned with tune.py for the 20 Hz ControllerThread: ~14.7 s laps, and laps from every start position at every frame
-# time from 12 to 33 ms, except standing starts from 4 of the 54 positions (not stable at 10 Hz)
+# tuned with tune.py for the 20 Hz controller and 5 ms sim step, with A_X ±5: ~14.9 s laps from 51 of the 54 start
+# positions (standing starts from 30, 55 and 56 fail). with A_X ±10: ~13.9 s laps, but only from 34 of them
 params = Parameters(
     deltaT_s=0.1,
     w_1=5.0,
@@ -89,7 +89,10 @@ params = Parameters(
 )
 controller_init(params)
 plots = ControlPlots(params, ui_scale)
-controller = ControllerThread(vehicle_state, period_s=1.0/20.0)  # solves from vehicle_state 20hz, on its own thread
+# the sim, the controller and drawing each run on their own thread, at their own rate
+sim = SimThread(vehicle_state, step_ms=5)  # steps vehicle_state in real time
+controller = ControllerThread(sim.snapshot, period_s=1.0/20.0)  # solves from the sim's state at 20 Hz
+sim.start(lambda: controller.latest()[0])  # drives with the controller's most recent plan
 
 while running:
     # handle events
@@ -98,29 +101,25 @@ while running:
         if event.type in (pygame.QUIT, pygame.WINDOWCLOSE):
             running = False
         elif event.type == pygame.KEYDOWN:
-            with controller.lock:
+            with sim.lock:
                 handle_key(event.key, vehicle_state)
     screen = window.get_surface()  # the surface is replaced when the window is resized
 
     # this is what is running on the 
     detected_cones = simulate_cone_detection(vehicle_state)
-    dt = clock.get_time()  # ms since the previous frame
-    # drive with whichever plan the controller thread solved most recently, so drawing never waits for compute()
+    # draw whatever the sim and controller threads are up to, so drawing never waits for (or slows down) either
+    state, time_s = sim.snapshot()
     controls, trajectory = controller.latest()
-    time += dt / 1000
-    plots.push(time, controls)
+    plots.push(time_s, controls)
 
-    # closing the SIL loop
     screen.fill("black")
-    with controller.lock:  # the controller thread snapshots the state (and its sim time) whenever it is due
-        sim_step(vehicle_state, controls, dt)
-        controller.time_s = time
-    render_world(vehicle_state, CONE_POSITIONS, screen, trajectory)
+    render_world(state, CONE_POSITIONS, screen, trajectory)
     plots.draw(screen)
 
     # flip() the display to put your work on screen
     window.flip()
     clock.tick(60)  # limits FPS to 60
 
+sim.stop()
 controller.stop()
 pygame.quit()
