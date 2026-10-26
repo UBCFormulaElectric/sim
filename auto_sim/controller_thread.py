@@ -8,13 +8,18 @@ import time
 from typing import Callable
 
 from Controller import ControlOutput, VehicleState, compute, get_control, get_trajectory
+from mdf_logger import MdfLogger
 
 
 class ControllerThread:
-    def __init__(self, snapshot: Callable[[], tuple[VehicleState, float]], period_s: float):
-        """solves every period_s seconds (wall clock), from snapshot(): a copy of the vehicle state, and its sim time"""
+    def __init__(self, snapshot: Callable[[], tuple[VehicleState, float]], period_s: float, logger: MdfLogger | None = None):
+        """
+        solves every period_s seconds (wall clock), from snapshot(): a copy of the vehicle state, and its sim time,
+        logging each solve to `logger`
+        """
         self._snapshot = snapshot
         self._period_s = period_s
+        self._logger = logger
         self._cond = threading.Condition()
         self._plan: tuple[ControlOutput, list[VehicleState]] | None = None
         self._error: BaseException | None = None
@@ -44,8 +49,12 @@ class ControllerThread:
                 # compute() releases the GIL while solving. its dt is the sim time since the previous snapshot
                 dt_s = 0.0 if prev_time_s is None else time_s - prev_time_s
                 prev_time_s = time_s
+                solve_start_s = time.perf_counter()
                 output = compute(state, dt_s)
+                solve_s = time.perf_counter() - solve_start_s
                 plan = (get_control(output), get_trajectory(output))
+                if self._logger is not None:
+                    self._logger.log_solve(time_s, dt_s, solve_s, plan[0])
                 with self._cond:
                     self._plan = plan
                     self._cond.notify_all()

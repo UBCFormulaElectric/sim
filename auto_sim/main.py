@@ -4,6 +4,7 @@ from render import init, render_world
 from control_plots import ControlPlots
 from controller_thread import ControllerThread
 from sim_thread import SimThread
+from mdf_logger import MdfLogger
 import ctypes
 import math
 import platform
@@ -89,37 +90,43 @@ params = Parameters(
 )
 controller_init(params)
 plots = ControlPlots(params, ui_scale)
+logger = MdfLogger(params)
 # the sim, the controller and drawing each run on their own thread, at their own rate
-sim = SimThread(vehicle_state, step_ms=5)  # steps vehicle_state in real time
-controller = ControllerThread(sim.snapshot, period_s=1.0/20.0)  # solves from the sim's state at 20 Hz
+sim = SimThread(vehicle_state, step_ms=5, logger=logger)  # steps vehicle_state in real time
+controller = ControllerThread(sim.snapshot, period_s=1.0/20.0, logger=logger)  # solves from the sim's state at 20 Hz
 sim.start(lambda: controller.latest()[0])  # drives with the controller's most recent plan
 
-while running:
-    # handle events
-    # pygame.QUIT event means the user clicked X to close your window
-    for event in pygame.event.get():
-        if event.type in (pygame.QUIT, pygame.WINDOWCLOSE):
-            running = False
-        elif event.type == pygame.KEYDOWN:
-            with sim.lock:
-                handle_key(event.key, vehicle_state)
-    screen = window.get_surface()  # the surface is replaced when the window is resized
+# save the log even if the sim or controller thread fails, since that is when it is most useful
+try:
+    while running:
+        # handle events
+        # pygame.QUIT event means the user clicked X to close your window
+        for event in pygame.event.get():
+            if event.type in (pygame.QUIT, pygame.WINDOWCLOSE):
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                with sim.lock:
+                    handle_key(event.key, vehicle_state)
+        screen = window.get_surface()  # the surface is replaced when the window is resized
 
-    # this is what is running on the 
-    detected_cones = simulate_cone_detection(vehicle_state)
-    # draw whatever the sim and controller threads are up to, so drawing never waits for (or slows down) either
-    state, time_s = sim.snapshot()
-    controls, trajectory = controller.latest()
-    plots.push(time_s, controls)
+        # this is what is running on the 
+        detected_cones = simulate_cone_detection(vehicle_state)
+        # draw whatever the sim and controller threads are up to, so drawing never waits for (or slows down) either
+        state, time_s = sim.snapshot()
+        controls, trajectory = controller.latest()
+        plots.push(time_s, controls, state)
 
-    screen.fill("black")
-    render_world(state, CONE_POSITIONS, screen, trajectory)
-    plots.draw(screen)
+        screen.fill("black")
+        render_world(state, CONE_POSITIONS, screen, trajectory)
+        plots.draw(screen)
 
-    # flip() the display to put your work on screen
-    window.flip()
-    clock.tick(60)  # limits FPS to 60
-
-sim.stop()
-controller.stop()
-pygame.quit()
+        # flip() the display to put your work on screen
+        window.flip()
+        clock.tick(60)  # limits FPS to 60
+finally:
+    sim.stop()
+    controller.stop()
+    log_path = logger.save()
+    if log_path is not None:
+        print(f"logged to {log_path}")
+    pygame.quit()

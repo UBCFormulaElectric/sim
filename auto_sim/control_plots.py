@@ -1,9 +1,11 @@
 """
-Rolling plots of the controller's outputs, rendered with matplotlib and blitted onto the pygame window.
+Rolling plots of the controller's outputs and the vehicle's speed, rendered with matplotlib and blitted onto the pygame
+window.
 
-The axes never change (time is plotted relative to now, and each y range comes from that control's bounds in
-Parameters), so the static parts are rendered once and each frame only redraws the lines on top. A full matplotlib
-redraw every frame would take tens of ms, slowing the frame rate and so changing the dt the controller and sim run at.
+The axes never change (time is plotted relative to now, each control's y range comes from its bounds in Parameters, and
+speed, which has no bound there, gets a fixed range), so the static parts are rendered once and each frame only redraws
+the lines on top. A full matplotlib redraw every frame would take tens of ms, slowing the frame rate and so changing the
+dt the controller and sim run at.
 """
 from collections import deque
 
@@ -12,11 +14,12 @@ import pygame
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 
-from Controller import ControlOutput, Parameters
+from Controller import ControlOutput, Parameters, VehicleState
 
 HISTORY_S = 10.0
-SIZE_PT = (410, 460)  # panel size in OS points
+SIZE_PT = (410, 610)  # panel size in OS points
 MARGIN_PT = 16
+SPEED_MAX_MPS = 25.0  # top of the speed plot's y range
 
 TEXT_PRIMARY = "#f0efec"
 TEXT_SECONDARY = "#c3c2b7"
@@ -28,13 +31,14 @@ SERIES = "#3987e5"
 
 class ControlPlots:
     def __init__(self, params: Parameters, ui_scale: float = 1.0):
-        # (title, unit, bounds) in the same order as the fields of ControlOutput
+        # (title, unit, bounds, value format) in the same order as the values in each history entry
         channels = [
-            ("Acceleration $a_x$", "m/s²", (params.A_X_MIN, params.A_X_MAX)),
-            ("Yaw acceleration $\\dot{r}$", "rad/s²", (params.R_DOT_MIN, params.R_DOT_MAX)),
-            ("Steering $\\delta$", "rad", (params.DELTA_MIN, params.DELTA_MAX)),
+            ("Acceleration $a_x$", "m/s²", (params.A_X_MIN, params.A_X_MAX), "+.3f"),
+            ("Yaw acceleration $\\dot{r}$", "rad/s²", (params.R_DOT_MIN, params.R_DOT_MAX), "+.3f"),
+            ("Steering $\\delta$", "rad", (params.DELTA_MIN, params.DELTA_MAX), "+.3f"),
+            ("Speed $|v|$", "m/s", (0.0, SPEED_MAX_MPS), ".2f"),
         ]
-        self.history: deque[tuple[float, float, float, float]] = deque()
+        self.history: deque[tuple[float, float, float, float, float]] = deque()
         self.ui_scale = ui_scale
 
         # at 72 dpi a matplotlib point is one OS point, so font sizes and line widths match the rest of the UI
@@ -46,7 +50,8 @@ class ControlPlots:
         self.lines = []
         self.dots = []
         self.values = []
-        for ax, (title, unit, (lo, hi)) in zip(axes, channels):
+        self.formats = [fmt for *_, fmt in channels]
+        for ax, (title, unit, (lo, hi), _) in zip(axes, channels):
             ax.set_facecolor("none")
             ax.xaxis.set_visible(False)
             ax.set_title(f"{title}  ({unit})", loc="left", fontsize=11, color=TEXT_PRIMARY)
@@ -80,8 +85,9 @@ class ControlPlots:
         self.canvas.draw()
         self.background = self.canvas.copy_from_bbox(self.figure.bbox)
 
-    def push(self, time_s: float, control: ControlOutput):
-        self.history.append((time_s, control.ax, control.omega_dot, control.delta))
+    def push(self, time_s: float, control: ControlOutput, state: VehicleState):
+        speed = np.hypot(state.v_x, state.v_y)
+        self.history.append((time_s, control.ax, control.omega_dot, control.delta, speed))
         while self.history[0][0] < time_s - HISTORY_S:
             self.history.popleft()
 
@@ -92,11 +98,11 @@ class ControlPlots:
         t = data[:, 0] - data[-1, 0]
 
         self.canvas.restore_region(self.background)
-        for i, (line, dot, value) in enumerate(zip(self.lines, self.dots, self.values)):
+        for i, (line, dot, value, fmt) in enumerate(zip(self.lines, self.dots, self.values, self.formats)):
             y = data[:, i + 1]
             line.set_data(t, y)
             dot.set_data([0.0], [y[-1]])
-            value.set_text(f"{y[-1]:+.3f}")
+            value.set_text(format(y[-1], fmt))
             for artist in (line, dot, value):
                 self.figure.draw_artist(artist)
 

@@ -4,7 +4,7 @@
 #include <optional>
 #include <proxsuite/proxqp/sparse/sparse.hpp>
 
-constexpr inline proxsuite::linalg::veg::isize T = 20; // timesteps
+constexpr inline proxsuite::linalg::veg::isize T = 25; // timesteps
 
 struct Parameters {
     double deltaT_s = 0.1; // time represented per step
