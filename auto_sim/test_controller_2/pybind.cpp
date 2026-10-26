@@ -33,6 +33,7 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
 
     py::class_<VehicleState>(m, "VehicleState")
         .def(py::init<>())
+        .def(py::init<const VehicleState&>()) // copy, e.g. to snapshot the state for compute() on another thread
         .def_readwrite("x", &VehicleState::x)
         .def_readwrite("y", &VehicleState::y)
         .def_readwrite("psi", &VehicleState::psi)
@@ -96,7 +97,9 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
     m.def("init", &init, py::arg("params") = py::none(), R"pbdoc(
         Initialize the controller with optional parameters
     )pbdoc");
-    m.def("compute", &compute, R"pbdoc(
+    // releases the GIL while solving, so other python threads (e.g. drawing) keep running. compute() keeps its own state
+    // between calls, so only call it from one thread at a time, and don't modify the vehicle state while it runs
+    m.def("compute", &compute, py::call_guard<py::gil_scoped_release>(), R"pbdoc(
         Compute the optimal trajectory, given the vehicle state and the seconds elapsed since the previous call
     )pbdoc");
     m.def("get_control", &get_control, R"pbdoc(
