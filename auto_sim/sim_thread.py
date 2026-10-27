@@ -6,6 +6,7 @@ state via snapshot().
 import threading
 import time
 from typing import Callable
+from playsound3 import playsound
 
 from Controller import ControlOutput, VehicleState, sim_step
 from mdf_logger import MdfLogger
@@ -25,13 +26,23 @@ class SimThread:
         self._step_ms = step_ms
         self._logger = logger
         self._control: Callable[[], ControlOutput] | None = None
+        self._control_manual: Callable[[], ControlOutput] | None = None
         self._error: BaseException | None = None
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="sim", daemon=True)
+        self._manual_control = True
 
-    def start(self, control: Callable[[], ControlOutput]):
+    def toggle_manual_control(self):
+        self._manual_control = not self._manual_control
+        if self._manual_control:
+            playsound("autosteer_disabled.mp3", block=False)
+        else:
+            playsound("autosteer_enabled.mp3", block=False)
+
+    def start(self, control: Callable[[], ControlOutput], control_manual: Callable[[], ControlOutput]):
         """start stepping, applying control() at each step"""
         self._control = control
+        self._control_manual = control_manual
         self._thread.start()
 
     def snapshot(self) -> tuple[VehicleState, float]:
@@ -47,12 +58,14 @@ class SimThread:
 
     def _run(self):
         step_s = self._step_ms / 1000
+        assert self._control is not None
+        assert self._control_manual is not None
         try:
             self._control()  # wait for the first control (e.g. the controller's first solve) before starting the clock
             next_s = time.monotonic()
             while not self._stop.wait(max(0.0, next_s - time.monotonic())):
                 next_s = max(next_s + step_s, time.monotonic() - MAX_LAG_S)
-                control = self._control()
+                control = self._control_manual() if self._manual_control else self._control()
                 with self.lock:
                     sim_step(self.state, control, self._step_ms)
                     self.time_s += step_s

@@ -1,5 +1,5 @@
 import pygame
-from Controller import Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t, init as controller_init, Parameters
+from Controller import Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t, init as controller_init, Parameters, ControlOutput
 from render import init, render_world
 from control_plots import ControlPlots
 from controller_thread import ControllerThread
@@ -45,13 +45,6 @@ vehicle_state: VehicleState = VehicleState()
 # vehicle_state.theta = math.radians(23.54)
 # vehicle_state.omega = -0.2
 
-def handle_key(key: int, state: VehicleState):
-    match key:
-        case pygame.K_d: state.y -= 1
-        case pygame.K_a: state.y += 1
-        case pygame.K_w: state.x += 1
-        case pygame.K_s: state.x -= 1
-
 ran = False
 def simulate_cone_detection(state: VehicleState):
     global ran
@@ -66,6 +59,8 @@ simulate_cone_detection(vehicle_state)
 start_t = project(vehicle_state.x, vehicle_state.y)
 p0, p1 = spline_t(start_t), spline_t(start_t + 0.1)
 vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
+
+manual_control_output = ControlOutput(0, 0, 0)
 
 # tuned with tune.py for the 20 Hz controller and 5 ms sim step, with A_X ±5: ~14.9 s laps from 51 of the 54 start
 # positions (standing starts from 30, 55 and 56 fail). with A_X ±10: ~13.9 s laps, but only from 34 of them
@@ -94,7 +89,22 @@ logger = MdfLogger(params)
 # the sim, the controller and drawing each run on their own thread, at their own rate
 sim = SimThread(vehicle_state, step_ms=5, logger=logger)  # steps vehicle_state in real time
 controller = ControllerThread(sim.snapshot, period_s=1.0/20.0, logger=logger)  # solves from the sim's state at 20 Hz
-sim.start(lambda: controller.latest()[0])  # drives with the controller's most recent plan
+sim.start(lambda: controller.latest()[0], lambda: manual_control_output)  # drives with the controller's most recent plan
+
+def handle_key_down(key: int):
+    match key:
+        case pygame.K_d: manual_control_output.delta = -0.2
+        case pygame.K_a: manual_control_output.delta = 0.2
+        case pygame.K_w: manual_control_output.ax = 1
+        case pygame.K_s: manual_control_output.ax = -1
+        case pygame.K_SPACE: sim.toggle_manual_control()
+
+def handle_key_up(key: int):
+    match key:
+        case pygame.K_d: manual_control_output.delta = 0
+        case pygame.K_a: manual_control_output.delta = 0
+        case pygame.K_w: manual_control_output.ax = 0
+        case pygame.K_s: manual_control_output.ax = 0
 
 # save the log even if the sim or controller thread fails, since that is when it is most useful
 try:
@@ -105,8 +115,9 @@ try:
             if event.type in (pygame.QUIT, pygame.WINDOWCLOSE):
                 running = False
             elif event.type == pygame.KEYDOWN:
-                with sim.lock:
-                    handle_key(event.key, vehicle_state)
+                handle_key_down(event.key)
+            elif event.type == pygame.KEYUP:
+                handle_key_up(event.key)
         screen = window.get_surface()  # the surface is replaced when the window is resized
 
         # this is what is running on the 

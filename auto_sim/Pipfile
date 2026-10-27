@@ -13,6 +13,7 @@ requests = "*"
 casadi = "==3.6.7"
 matplotlib = "*"
 asammdf = "*"
+playsound3 = "*"
 
 [dev-packages]
 
