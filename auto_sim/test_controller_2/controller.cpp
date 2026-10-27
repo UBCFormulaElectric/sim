@@ -165,11 +165,10 @@ void init(const std::optional<Parameters> pp) {
     }
 
     qp_optional = std::make_optional<sparse::QP<double, isize>>(H_mask, A_mask, C_mask);
-    qp_optional->settings.max_iter = 1000;
-    // each outer iteration can otherwise run up to 1500 inner iterations, which made failed solves take seconds
+    qp_optional->settings.max_iter = 200;
     qp_optional->settings.max_iter_in = 100;
-    // consecutive problems are very similar, so start from the previous solution
     qp_optional->settings.initial_guess = InitialGuessStatus::WARM_START_WITH_PREVIOUS_RESULT;
+
     H = H_mask.cast<double>();
     A = A_mask.cast<double>();
     C = C_mask.cast<double>();
@@ -197,9 +196,6 @@ void init(const std::optional<Parameters> pp) {
 
 static Eigen::Matrix<double, T * dims, 1> last_result;
 sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
-    if (not qp_optional.has_value()) {
-        init();
-    }
     assert(qp_optional.has_value());
     sparse::QP<double, isize>& qp = qp_optional.value();
 
