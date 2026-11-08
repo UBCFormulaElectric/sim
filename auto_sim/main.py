@@ -1,6 +1,6 @@
 import pygame
 from Controller import Cone, ConeColor, VehicleState, mock_perception, compute_path, project, spline_t, init as controller_init, Parameters, ControlOutput
-from render import init, render_world
+from render import init, render_world, precompute_projection_grid
 from control_plots import ControlPlots
 from controller_thread import ControllerThread
 from sim_thread import SimThread
@@ -59,6 +59,7 @@ simulate_cone_detection(vehicle_state)
 start_t = project(vehicle_state.x, vehicle_state.y)
 p0, p1 = spline_t(start_t), spline_t(start_t + 0.1)
 vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
+precompute_projection_grid()  # slow, so do it once now, before the controller thread starts calling project() too
 
 manual_control_output = ControlOutput(0, 0, 0)
 

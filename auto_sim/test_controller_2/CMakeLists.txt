@@ -142,8 +142,14 @@ CPMAddPackage(
 )
 
 file(GLOB ALGLIB_SOURCES ${alglib_SOURCE_DIR}/src/*.cpp)
-file(GLOB SOURCES *.cpp)
-pybind11_add_module(controller ${SOURCES} ${ALGLIB_SOURCES})
+set(SOURCES
+        controller.cpp
+        perception.cpp
+        path.cpp
+        sim.cpp
+        tire_model.cpp
+)
+pybind11_add_module(controller pybind.cpp ${SOURCES} ${ALGLIB_SOURCES})
 target_link_libraries(controller PRIVATE CDT_interface Eigen3::Eigen alglib_interface autodiff_interface proxsuite)
 
 

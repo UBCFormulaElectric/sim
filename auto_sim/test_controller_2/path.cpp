@@ -162,7 +162,7 @@ double project(const double x0, const double y0, double t) {
             return t;
         }
     }
-    std::cout << "project did not converge at x=" << x0 << "and y=" << y0 << std::endl;
+    std::cerr << "project did not converge at x=" << x0 << "and y=" << y0 << std::endl;
     throw std::runtime_error("project did not converge");
 }
 

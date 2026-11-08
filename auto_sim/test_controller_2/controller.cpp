@@ -112,6 +112,7 @@ autodiff::dual2nd cost(const StateVec<autodiff::dual2nd>& state) {
 }
 
 bool first_call = true;
+bool failed = false;
 }
 
 
@@ -192,10 +193,15 @@ void init(const std::optional<Parameters> pp) {
             A.coeffRef(state_dims * t + i, dims * t + i) = -1;
         }
     }
+
+    failed = false;
 }
 
 static Eigen::Matrix<double, T * dims, 1> last_result;
-sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
+std::optional<sparse::Vec<double>> compute(const VehicleState& ve, const double dt_s) {
+    if(failed) {
+        return std::nullopt;
+    }
     assert(qp_optional.has_value());
     sparse::QP<double, isize>& qp = qp_optional.value();
 
@@ -321,6 +327,7 @@ sparse::Vec<double> compute(const VehicleState& ve, const double dt_s) {
         // keep the previous seed rather than linearizing the next call around a bad solution
         std::cerr << "MPC QP did not converge: status " << static_cast<int>(qp.results.info.status)
                   << " after " << qp.results.info.iter << " iterations" << std::endl;
+        failed = true;
     } else {
         // use qp.results.x to seed the next iteration
         last_result = qp.results.x.segment(0, T * dims);

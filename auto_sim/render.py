@@ -5,6 +5,7 @@ from constants import VEHICLE_WIDTH_M
 from Controller import VehicleState, Cone, ConeColor, get_center_points, project, spline_t, get_center_line_length, get_offline_edges, get_boundary_edges, get_cones
 from math import ceil, degrees
 import numpy as np
+from colorsys import hsv_to_rgb
 
 PIXELS_PER_M = 	20.0
 UI_SCALE = 1.0  # physical pixels per OS point, 2.0 on retina displays
@@ -164,6 +165,60 @@ def draw_path_projection(screen: pygame.Surface, vehicle_state: VehicleState):
 	x = spline_t(at_t)
 	pygame.draw.circle(screen, "red", transform(x.x, x.y, vehicle_state), 5)
 
+projection_grid_surface: pygame.Surface | None = None
+projection_grid_origin = (0.0, 0.0)  # world (x_min, y_max), i.e. the top left corner of the surface
+def precompute_projection_grid(spacing_m: float = 1.0, margin_m: float = 5.0, radius_m: float = 0.15):
+	"""
+	Renders a grid of circles covering the track's bounding box (plus margin) onto a world-aligned surface, each
+	coloured by the hue of project(x, y) / center line length, i.e. where that point projects onto the center line.
+	project() does a slow global search, so do this once after compute_path() (and after init(), since the surface
+	is drawn at PIXELS_PER_M); draw_projection_grid() then only rotates and blits the visible part.
+	"""
+	global projection_grid_surface, projection_grid_origin
+	cones = get_cones()
+	length = get_center_line_length()
+	if len(cones) == 0 or length <= 0:
+		return
+	x_min, x_max = min(c.x for c in cones) - margin_m, max(c.x for c in cones) + margin_m
+	y_min, y_max = min(c.y for c in cones) - margin_m, max(c.y for c in cones) + margin_m
+	surf = pygame.Surface((ceil((x_max - x_min) * PIXELS_PER_M), ceil((y_max - y_min) * PIXELS_PER_M)), pygame.SRCALPHA)
+	radius_px = max(1, radius_m * PIXELS_PER_M)
+	for x in np.arange(x_min, x_max + spacing_m / 2, spacing_m):
+		for y in np.arange(y_min, y_max + spacing_m / 2, spacing_m):
+			try:
+				t = project(float(x), float(y))
+			except RuntimeError:
+				continue  # projection did not converge, leave this point blank
+			r, g, b = hsv_to_rgb((t / length) % 1.0, 1, 1)
+			# surface y points down, world y points up
+			pygame.draw.circle(surf, (int(r * 255), int(g * 255), int(b * 255)),
+				((x - x_min) * PIXELS_PER_M, (y_max - y) * PIXELS_PER_M), radius_px)
+	projection_grid_surface = surf
+	projection_grid_origin = (x_min, y_max)
+
+def draw_projection_grid(screen: pygame.Surface, vehicle_state: VehicleState):
+	"""
+	Draws the surface from precompute_projection_grid() in the vehicle's frame
+	"""
+	if projection_grid_surface is None:
+		precompute_projection_grid()
+		if projection_grid_surface is None:
+			return
+	x_min, y_max = projection_grid_origin
+	# only rotate the part of the surface that can land on screen: a square around the car, big enough to cover the
+	# screen at any heading (the car sits at (w/2, 0.67h), so the farthest corner is a bottom/top one)
+	reach = ceil(np.hypot(w / 2, max(0.67 * h, 0.33 * h)))
+	car_px = ((vehicle_state.x - x_min) * PIXELS_PER_M, (y_max - vehicle_state.y) * PIXELS_PER_M)
+	crop = pygame.Rect(int(car_px[0]) - reach, int(car_px[1]) - reach, 2 * reach, 2 * reach)
+	crop = crop.clip(projection_grid_surface.get_rect())
+	if crop.width == 0 or crop.height == 0:
+		return
+	# world position of the crop's center, which stays the center after rotating
+	crop_center_x = x_min + (crop.x + crop.width / 2) / PIXELS_PER_M
+	crop_center_y = y_max - (crop.y + crop.height / 2) / PIXELS_PER_M
+	rotated = pygame.transform.rotate(projection_grid_surface.subsurface(crop), degrees(-vehicle_state.psi + np.pi / 2))
+	screen.blit(rotated, rotated.get_rect(center=transform(crop_center_x, crop_center_y, vehicle_state)))
+
 at_t = None
 def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.Surface, trajectory: list[VehicleState]):
 	global w, h, at_t
@@ -172,6 +227,7 @@ def render_world(vehicle_state: VehicleState, cones: list[Cone], screen: pygame.
 	# grid for context
 	drawGrid(screen, vehicle_state)
 	# drawSplintSurface(screen, vehicle_state)
+	draw_projection_grid(screen, vehicle_state)
 
 	# pygame.draw.circle(screen, "white", transform(0, 0, vehicle_state), 5)
 

@@ -52,12 +52,13 @@ class ControllerThread:
                 solve_start_s = time.perf_counter()
                 output = compute(state, dt_s)
                 solve_s = time.perf_counter() - solve_start_s
-                plan = (get_control(output), get_trajectory(output))
-                if self._logger is not None:
-                    self._logger.log_solve(time_s, dt_s, solve_s, plan[0])
-                with self._cond:
-                    self._plan = plan
-                    self._cond.notify_all()
+                if output is not None:
+                    plan = (get_control(output), get_trajectory(output))
+                    if self._logger is not None:
+                        self._logger.log_solve(time_s, dt_s, solve_s, plan[0])
+                    with self._cond:
+                        self._plan = plan
+                        self._cond.notify_all()
         except BaseException as e:
             # hand the error to whoever asks for the plan next, instead of silently driving with the last plan forever
             with self._cond:
