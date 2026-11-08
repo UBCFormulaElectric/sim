@@ -7,9 +7,28 @@ import threading
 import time
 from typing import Callable
 
-from Controller import ControlOutput, VehicleState, compute, get_control, get_trajectory
+from Controller import ControlOutput, VehicleState, compute, get_control, get_trajectory, init as controller_init, Parameters
 from mdf_logger import MdfLogger
 
+params = Parameters(
+    deltaT_s=0.1,
+    w_1=20.0,
+    w_2=20.0,
+    w_3=10.0,
+    w_a_x=0.01,
+    w_r_dot=0.01,
+    w_delta=3.0,
+    w_v_theta=0.01,
+    w_prox=500.0,
+    A_X_MIN=-10.0,
+    A_X_MAX=10.0,
+    R_DOT_MIN=-0.5,
+    R_DOT_MAX=0.5,
+    DELTA_MIN=-0.5,
+    DELTA_MAX=0.5,
+    V_THETA_MIN=0.0,
+    V_THETA_MAX=100.0,
+)
 
 class ControllerThread:
     def __init__(self, snapshot: Callable[[], tuple[VehicleState, float]], period_s: float, logger: MdfLogger | None = None):
@@ -40,6 +59,7 @@ class ControllerThread:
         self._thread.join()
 
     def _run(self):
+        controller_init(params)
         prev_time_s = None
         next_s = time.monotonic()
         try:
@@ -60,6 +80,7 @@ class ControllerThread:
                         self._plan = plan
                         self._cond.notify_all()
                 else:
+                    controller_init(params)
                     with self._cond:
                         self._plan = (ControlOutput(0, 0, 0), [])
                         self._cond.notify_all()
