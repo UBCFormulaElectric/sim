@@ -59,6 +59,10 @@ class ControllerThread:
                     with self._cond:
                         self._plan = plan
                         self._cond.notify_all()
+                else:
+                    with self._cond:
+                        self._plan = (ControlOutput(0, 0, 0), [])
+                        self._cond.notify_all()
         except BaseException as e:
             # hand the error to whoever asks for the plan next, instead of silently driving with the last plan forever
             with self._cond:

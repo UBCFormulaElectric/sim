@@ -67,8 +67,8 @@ manual_control_output = ControlOutput(0, 0, 0)
 # positions (standing starts from 30, 55 and 56 fail). with A_X ±10: ~13.9 s laps, but only from 34 of them
 params = Parameters(
     deltaT_s=0.1,
-    w_1=5.0,
-    w_2=10.0,
+    w_1=20.0,
+    w_2=20.0,
     w_3=10.0,
     w_a_x=0.01,
     w_r_dot=0.01,

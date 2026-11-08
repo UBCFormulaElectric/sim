@@ -109,6 +109,8 @@ def drawTrajectory(screen: pygame.Surface, trajectory: list[VehicleState], vehic
 	"""
 	Draws the future states predicted by the controller
 	"""
+	if len(trajectory) == 0:
+		return
 	points = [transform(s.x, s.y, vehicle_state) for s in trajectory]
 	pygame.draw.lines(screen, color, False, points, round(2 * UI_SCALE))
 	for point in points:
