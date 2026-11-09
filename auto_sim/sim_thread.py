@@ -3,6 +3,7 @@ Steps the vehicle dynamics on its own thread, in real time, with the controller'
 neither depends on the frame rate nor stalls when drawing does. The draw loop and the controller read copies of the
 state via snapshot().
 """
+import math
 import threading
 import time
 from typing import Callable
@@ -10,6 +11,12 @@ from playsound3 import playsound
 
 from Controller import ControlOutput, VehicleState, sim_step
 from mdf_logger import MdfLogger
+
+def start_command(s: VehicleState) -> str:
+    """the main.py command that starts the sim from state s"""
+    return (f"python main.py --x {s.x:.6g} --y {s.y:.6g} --psi {s.psi:.6g} "
+            f"--v-x {s.v_x:.6g} --v-y {s.v_y:.6g} --r {s.r:.6g}")
+
 
 MAX_LAG_S = 0.1  # if stepping falls further behind real time than this (e.g. a stall), skip ahead instead of catching up
 
@@ -21,6 +28,7 @@ class SimThread:
         step to `logger`. anything else that changes the state must hold `lock` while doing so
         """
         self.state = state
+        self.initial_state = VehicleState(state)  # to print how to restart this run
         self.time_s = 0.0
         self.lock = threading.Lock()
         self._step_ms = step_ms
@@ -31,6 +39,30 @@ class SimThread:
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, name="sim", daemon=True)
         self._manual_control = True
+        self._paused = False
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
+
+    def toggle_pause(self):
+        """freeze (or resume) the sim: the state and sim time stop advancing until unpaused. dumps the state on pausing"""
+        # under the lock, so the dumped state is exactly the one the sim froze at (no step can land in between)
+        with self.lock:
+            self._paused = not self._paused
+            if not self._paused:
+                print("RESUMED")
+                return
+            s = self.state
+            print(
+                f"PAUSED at t = {self.time_s:.3f} s ({'manual' if self._manual_control else 'autosteer'})\n"
+                f"  x   = {s.x:10.4f} m        y   = {s.y:10.4f} m\n"
+                f"  psi = {s.psi:10.4f} rad      ({math.degrees(s.psi):.2f} deg)\n"
+                f"  v_x = {s.v_x:10.4f} m/s      v_y = {s.v_y:10.4f} m/s      |v| = {math.hypot(s.v_x, s.v_y):.4f} m/s\n"
+                f"  r   = {s.r:10.4f} rad/s    ({math.degrees(s.r):.2f} deg/s)\n"
+                f"  restart this run: {start_command(self.initial_state)}\n"
+                f"  start from here:  {start_command(s)}"
+            )
 
     def toggle_manual_control(self):
         self._manual_control = not self._manual_control
@@ -67,6 +99,10 @@ class SimThread:
                 next_s = max(next_s + step_s, time.monotonic() - MAX_LAG_S)
                 control = self._control_manual() if self._manual_control else self._control()
                 with self.lock:
+                    if self._paused:
+                        # keep the clock at now, so resuming doesn't try to catch up on the time spent paused
+                        next_s = time.monotonic() + step_s
+                        continue
                     sim_step(self.state, control, self._step_ms)
                     self.time_s += step_s
                     if self._logger is not None:

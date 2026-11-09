@@ -5,9 +5,22 @@ from control_plots import ControlPlots
 from controller_thread import ControllerThread, params
 from sim_thread import SimThread
 from mdf_logger import MdfLogger
+import argparse
 import ctypes
 import math
 import platform
+
+# optional initial conditions, e.g. `python main.py --x 3 --y -1.5 --v-x 8`. anything not given keeps its default: at
+# the origin, at rest, and (unless --psi is given) pointing along the center line. given any, the sim starts paused.
+# pausing (P) prints the flags for the current state, to start again from there
+parser = argparse.ArgumentParser(description="Autonomous sim")
+parser.add_argument("--x", type=float, help="initial x position [m]")
+parser.add_argument("--y", type=float, help="initial y position [m]")
+parser.add_argument("--psi", type=float, help="initial heading [rad], defaults to along the center line")
+parser.add_argument("--v-x", type=float, help="initial longitudinal velocity [m/s]")
+parser.add_argument("--v-y", type=float, help="initial lateral velocity [m/s]")
+parser.add_argument("--r", type=float, help="initial yaw rate [rad/s]")
+args = parser.parse_args()
 
 # dpi awareness for windows - prevents blurry rendering on high dpi displays
 if platform.system() == "Windows":
@@ -41,9 +54,9 @@ ui_scale = screen.get_width() / window.size[0]  # pixels per point, 2.0 on retin
 init(ui_scale)
 
 vehicle_state: VehicleState = VehicleState()
-# vehicle_state.v_y = 2.0
-# vehicle_state.theta = math.radians(23.54)
-# vehicle_state.omega = -0.2
+for field in ("x", "y", "psi", "v_x", "v_y", "r"):
+    if getattr(args, field) is not None:
+        setattr(vehicle_state, field, getattr(args, field))
 
 ran = False
 def simulate_cone_detection(state: VehicleState):
@@ -54,11 +67,12 @@ def simulate_cone_detection(state: VehicleState):
         ran = True
     return CONE_POSITIONS
 
-# point the car along the center line, so that progress along the path means driving forward
 simulate_cone_detection(vehicle_state)
-start_t = project(vehicle_state.x, vehicle_state.y)
-p0, p1 = spline_t(start_t), spline_t(start_t + 0.1)
-vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
+if args.psi is None:
+    # point the car along the center line, so that progress along the path means driving forward
+    start_t = project(vehicle_state.x, vehicle_state.y)
+    p0, p1 = spline_t(start_t), spline_t(start_t + 0.1)
+    vehicle_state.psi = math.atan2(p1[1] - p0[1], p1[0] - p0[0])
 precompute_projection_grid()  # slow, so do it once now, before the controller thread starts calling project() too
 
 manual_control_output = ControlOutput(0, 0, 0)
@@ -69,6 +83,8 @@ plots = ControlPlots(params, ui_scale)
 logger = MdfLogger(params)
 # the sim, the controller and drawing each run on their own thread, at their own rate
 sim = SimThread(vehicle_state, step_ms=5, logger=logger)  # steps vehicle_state in real time
+if any(getattr(args, field) is not None for field in ("x", "y", "psi", "v_x", "v_y", "r")):
+    sim.toggle_pause()  # start paused when given initial conditions, to look at them first (P to go)
 controller = ControllerThread(sim.snapshot, period_s=1.0/20.0, logger=logger)  # solves from the sim's state at 20 Hz
 sim.start(lambda: controller.latest()[0], lambda: manual_control_output)  # drives with the controller's most recent plan
 
@@ -79,6 +95,7 @@ def handle_key_down(key: int):
         case pygame.K_w: manual_control_output.ax = 1
         case pygame.K_s: manual_control_output.ax = -1
         case pygame.K_SPACE: sim.toggle_manual_control()
+        case pygame.K_p: sim.toggle_pause()
 
 def handle_key_up(key: int):
     match key:
@@ -106,7 +123,8 @@ try:
         # draw whatever the sim and controller threads are up to, so drawing never waits for (or slows down) either
         state, time_s = sim.snapshot()
         controls, trajectory = controller.latest()
-        plots.push(time_s, controls, state)
+        if not sim.paused:  # sim time is frozen, so pushing would grow the plot history forever
+            plots.push(time_s, controls, state)
 
         screen.fill("black")
         render_world(state, CONE_POSITIONS, screen, trajectory)
