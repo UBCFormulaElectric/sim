@@ -155,4 +155,6 @@ PYBIND11_MODULE(Controller, m, py::mod_gil_not_used()) {
             ex(e.msg.c_str());
         }
     });
+
+    m.def("write_matrices_to_file", &write_matrices_to_file);
 }

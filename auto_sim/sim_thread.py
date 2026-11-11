@@ -60,7 +60,6 @@ class SimThread:
                 f"  psi = {s.psi:10.4f} rad      ({math.degrees(s.psi):.2f} deg)\n"
                 f"  v_x = {s.v_x:10.4f} m/s      v_y = {s.v_y:10.4f} m/s      |v| = {math.hypot(s.v_x, s.v_y):.4f} m/s\n"
                 f"  r   = {s.r:10.4f} rad/s    ({math.degrees(s.r):.2f} deg/s)\n"
-                f"  restart this run: {start_command(self.initial_state)}\n"
                 f"  start from here:  {start_command(s)}"
             )
 

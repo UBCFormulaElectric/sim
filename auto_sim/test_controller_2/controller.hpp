@@ -49,3 +49,6 @@ enum class DriverlessState {
     TRACKDRIVE_MAPPING,
     TRACKDRIVE_RUNNING
 };
+
+// debug
+void write_matrices_to_file(const std::string& path);

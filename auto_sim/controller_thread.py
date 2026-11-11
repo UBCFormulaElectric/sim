@@ -7,7 +7,7 @@ import threading
 import time
 from typing import Callable
 
-from Controller import ControlOutput, VehicleState, compute, get_control, get_trajectory, init as controller_init, Parameters
+from Controller import ControlOutput, VehicleState, compute, get_control, get_trajectory, init as controller_init, Parameters, write_matrices_to_file
 from mdf_logger import MdfLogger
 
 params = Parameters(
@@ -74,13 +74,14 @@ class ControllerThread:
                 solve_s = time.perf_counter() - solve_start_s
                 if output is not None:
                     plan = (get_control(output), get_trajectory(output))
+                    write_matrices_to_file("matrices.txt")
                     if self._logger is not None:
                         self._logger.log_solve(time_s, dt_s, solve_s, plan[0])
                     with self._cond:
                         self._plan = plan
                         self._cond.notify_all()
                 else:
-                    controller_init(params)
+                    # controller_init(params)
                     with self._cond:
                         self._plan = (ControlOutput(0, 0, 0), [])
                         self._cond.notify_all()

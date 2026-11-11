@@ -117,8 +117,11 @@ void compute_path_from_percepted_cones() {
     xs[center_points.size()] = center_points[0].x;
     ys[center_points.size()] = center_points[0].y;
 
-    alglib::spline1dbuildcubic(center_line_len_prefix, xs, x_spline);
-    alglib::spline1dbuildcubic(center_line_len_prefix, ys, y_spline);
+    // the center line is a closed loop, so use periodic boundary conditions (boundtype -1). the default (parabolically
+    // terminated) ends leave the tangent and curvature discontinuous at the seam, which the MPC sees as a kink in the track
+    const alglib::ae_int_t n_knots = static_cast<alglib::ae_int_t>(center_points.size() + 1);
+    alglib::spline1dbuildcubic(center_line_len_prefix, xs, n_knots, -1, 0.0, -1, 0.0, x_spline);
+    alglib::spline1dbuildcubic(center_line_len_prefix, ys, n_knots, -1, 0.0, -1, 0.0, y_spline);
 }
 
 double project(const double x, const double y) {

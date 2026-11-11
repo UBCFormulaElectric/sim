@@ -14,6 +14,9 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <optional>
 
 #include "path.hpp"
@@ -360,4 +363,33 @@ std::array<VehicleState, T> get_trajectory(const sparse::Vec<double>& trajectory
         };
     }
     return out;
+}
+
+
+void write_matrices_to_file(const std::string& path) {
+    // write the per-step blocks of the QP to path: the cost H_i, g_i of step i and the dynamics A_i, b_i that map step
+    // i-1 to step i (for i = 0, A_i is the identity on the initial state and b_0 is the current state)
+    std::ofstream out(path, std::ios::app);
+    if (not out) {
+        std::cerr << "write_matrices_to_file: could not open " << path << std::endl;
+        return;
+    }
+    // StreamPrecision makes Eigen use the stream's scientific, 2 decimal place formatting
+    const Eigen::IOFormat fmt(Eigen::StreamPrecision, 0, ", ", "\n", "[", "]");
+    out << std::scientific << std::setprecision(4);
+    static int dump_count = 0;
+    out << "===== dump " << dump_count++ << " =====\n";
+    for (isize i = 0; i < T; i++) {
+        const Eigen::Matrix<double, state_dims, state_dims> H_i = H.block(i * dims, i * dims, state_dims, state_dims);
+        out << "H_" << i << " =\n" << H_i.format(fmt) << "\n";
+        out << "g_" << i << " =\n" << g.segment<state_dims>(i * dims).transpose().format(fmt) << "\n";
+        // if (i > 0) {
+        //     const Eigen::Matrix<double, state_dims, dims> A_i = A.block(i * state_dims, (i - 1) * dims, state_dims, dims);
+        //     out << "A_" << i << " =\n" << A_i.format(fmt) << "\n";
+        // }
+        // out << "b_" << i << " =\n" << b.segment<state_dims>(i * state_dims).transpose().format(fmt) << "\n";
+        // out << "lower_" << i << " =\n" << lower.segment<control_dims>(i * control_dims).transpose().format(fmt) << "\n";
+        // out << "upper_" << i << " =\n" << upper.segment<control_dims>(i * control_dims).transpose().format(fmt) << "\n";
+        out << "\n";
+    }
 }
