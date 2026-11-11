@@ -1,8 +1,19 @@
 #include "path.hpp"
 #include "perception.hpp"
 #include "scopetimer.hpp"
+#include <Eigen/Sparse>
+#include <Eigen/SparseCholesky>
+#include <array>
+#include <cmath>
 #include <stdexcept>
 #include <unordered_set>
+
+// spacing of the resampled center line knots
+constexpr double CENTER_LINE_SPACING_M = 0.5;
+// wiggles in the center line shorter than about this wavelength are smoothed out. the midpoints of the cone pairs zig-zag
+// with a ~2 m period, while the tightest real corner (a ~3 m radius hairpin) spans ~10 m of arc. on labels/0000075 this
+// moves the line at most 13 cm from the midpoints and raises the tightest radius from 1.3 m (wiggles) to 3.0 m
+constexpr double CENTER_LINE_SMOOTHING_M = 6.0;
 
 static std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& cones, const ConeColor c) {
     size_t start = 0;
@@ -43,6 +54,63 @@ static std::vector<CDT::VertInd> calculate_boundary(const std::vector<Cone>& con
 static double mod(const double a, const double b) {
     const double result = std::fmod(a, b);
     return result >= 0 ? result : result + b;
+}
+
+// resample the closed polyline through `points` every CENTER_LINE_SPACING_M, then smooth it as a periodic smoothing
+// spline: minimize sum |p_i - c_i|^2 + lambda sum |(p_{i-1} - 2 p_i + p_{i+1}) / ds^2|^2, i.e. solve (I + lambda D^T D) p = c
+// with D the cyclic second difference. this is a low pass filter with gain 1 / (1 + lambda k^4) at wavenumber k, so
+// lambda = (CENTER_LINE_SMOOTHING_M / 2 pi)^4 halves wiggles of wavelength CENTER_LINE_SMOOTHING_M and keeps longer ones
+static std::vector<Eigen::Vector2d> smooth_closed_loop(const std::vector<Cone>& points) {
+    const size_t m = points.size();
+    std::vector<double> prefix(m + 1, 0.0);
+    for (size_t i = 1; i <= m; ++i) {
+        const Cone& a = points[i - 1];
+        const Cone& b = points[i % m];
+        prefix[i] = prefix[i - 1] + std::hypot(b.x - a.x, b.y - a.y);
+    }
+    const double length = prefix[m];
+    const auto n = static_cast<Eigen::Index>(std::max<double>(8, std::round(length / CENTER_LINE_SPACING_M)));
+    const double ds = length / static_cast<double>(n);
+
+    // uniform resampling, linearly along the polyline
+    Eigen::MatrixX2d c(n, 2);
+    size_t seg = 0;
+    for (Eigen::Index i = 0; i < n; ++i) {
+        const double s = static_cast<double>(i) * ds;
+        while (seg + 1 < m and prefix[seg + 1] <= s) {
+            ++seg;
+        }
+        const Cone& a = points[seg];
+        const Cone& b = points[(seg + 1) % m];
+        const double seg_len = prefix[seg + 1] - prefix[seg];
+        const double f = seg_len > 0 ? (s - prefix[seg]) / seg_len : 0.0;
+        c.row(i) << a.x + f * (b.x - a.x), a.y + f * (b.y - a.y);
+    }
+
+    constexpr double two_pi = 2 * 3.14159265358979323846;
+    const double lambda = std::pow(CENTER_LINE_SMOOTHING_M / two_pi, 4) / std::pow(ds, 4);
+    // D^T D for the cyclic second difference is the cyclic stencil (1, -4, 6, -4, 1)
+    std::vector<Eigen::Triplet<double>> triplets;
+    constexpr std::array<double, 5> stencil { 1, -4, 6, -4, 1 };
+    for (Eigen::Index i = 0; i < n; ++i) {
+        triplets.emplace_back(i, i, 1.0);
+        for (Eigen::Index k = -2; k <= 2; ++k) {
+            triplets.emplace_back(i, ((i + k) % n + n) % n, lambda * stencil[k + 2]);
+        }
+    }
+    Eigen::SparseMatrix<double> system(n, n);
+    system.setFromTriplets(triplets.begin(), triplets.end());
+    const Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>> solver(system);
+    if (solver.info() != Eigen::Success) {
+        throw std::runtime_error("center line smoothing failed");
+    }
+    const Eigen::MatrixX2d p = solver.solve(c);
+
+    std::vector<Eigen::Vector2d> out(static_cast<size_t>(n));
+    for (Eigen::Index i = 0; i < n; ++i) {
+        out[static_cast<size_t>(i)] = p.row(i).transpose();
+    }
+    return out;
 }
 
 void compute_path_from_percepted_cones() {
@@ -93,33 +161,31 @@ void compute_path_from_percepted_cones() {
         center_points.push_back(_centers[i]);
     }
 
-    // center line parameterization prefix
-    alglib::real_1d_array center_line_len_prefix;
-    center_line_len_prefix.setlength(center_points.size() + 1);
-    center_line_len_prefix[0] = 0;
-    for (size_t i = 1; i <= center_points.size(); ++i) {
-        const Cone& c1 = center_points[i - 1];
-        const Cone& c2 = center_points[i % center_points.size()];
-        center_line_len_prefix[i] = center_line_len_prefix[i - 1] + std::hypot(c1.x - c2.x, c1.y - c2.y);
-    }
-    center_line_length = center_line_len_prefix[center_points.size()];
+    // the center points are midpoints of cone pairs, so they zig-zag by a few tens of cm. interpolating them exactly
+    // turns that noise into ~1 m radius wiggles that the MPC tries (and fails) to follow, so fit a smooth loop instead
+    const std::vector<Eigen::Vector2d> smoothed = smooth_closed_loop(center_points);
 
-    // draw a spline between all the center points
-    alglib::real_1d_array xs, ys;
-    xs.setlength(center_points.size() + 1);
-    ys.setlength(center_points.size() + 1);
-    for (size_t i = 0; i < center_points.size(); ++i) {
-        const Cone& c = center_points[i];
-        xs[i] = c.x;
-        ys[i] = c.y;
+    // center line parameterization prefix (arc length along the smoothed loop)
+    const size_t n = smoothed.size();
+    alglib::real_1d_array center_line_len_prefix, xs, ys;
+    center_line_len_prefix.setlength(static_cast<alglib::ae_int_t>(n + 1));
+    xs.setlength(static_cast<alglib::ae_int_t>(n + 1));
+    ys.setlength(static_cast<alglib::ae_int_t>(n + 1));
+    center_line_len_prefix[0] = 0;
+    for (size_t i = 0; i <= n; ++i) {
+        // cycle around: the last knot repeats the first
+        const Eigen::Vector2d& c = smoothed[i % n];
+        xs[i] = c.x();
+        ys[i] = c.y();
+        if (i > 0) {
+            center_line_len_prefix[i] = center_line_len_prefix[i - 1] + (c - smoothed[i - 1]).norm();
+        }
     }
-    // cycle around
-    xs[center_points.size()] = center_points[0].x;
-    ys[center_points.size()] = center_points[0].y;
+    center_line_length = center_line_len_prefix[n];
 
     // the center line is a closed loop, so use periodic boundary conditions (boundtype -1). the default (parabolically
     // terminated) ends leave the tangent and curvature discontinuous at the seam, which the MPC sees as a kink in the track
-    const alglib::ae_int_t n_knots = static_cast<alglib::ae_int_t>(center_points.size() + 1);
+    const alglib::ae_int_t n_knots = static_cast<alglib::ae_int_t>(n + 1);
     alglib::spline1dbuildcubic(center_line_len_prefix, xs, n_knots, -1, 0.0, -1, 0.0, x_spline);
     alglib::spline1dbuildcubic(center_line_len_prefix, ys, n_knots, -1, 0.0, -1, 0.0, y_spline);
 }

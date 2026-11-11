@@ -12,9 +12,9 @@ from mdf_logger import MdfLogger
 
 params = Parameters(
     deltaT_s=0.1,
-    w_1=20.0,
+    w_1=10.0,
     w_2=20.0,
-    w_3=5.0,
+    w_3=15.0,
     w_a_x=0.01,
     w_r_dot=0.01,
     w_delta=3.0,

@@ -247,21 +247,26 @@ std::optional<sparse::Vec<double>> compute(const VehicleState& ve, const double 
         // linearize around the (time shifted) previous solution
         StateVec<double> x_i = last_result.segment<state_dims>(i * dims);
 
-        // calculate
-        StateVec<double> grad_f { };
-        Eigen::Matrix<double, state_dims, state_dims> H_x_i { };
+        // gauss-newton model of the contouring cost e^T Gamma e, with e = l(theta) - (x, y): linearize the error around
+        // x_i, e ~ e_i + J dx with J = [-I, 0, 0, 0, 0, l'(theta)] (Gamma held fixed), and square that. this gives the
+        // hessian 2 J^T Gamma J and gradient 2 J^T Gamma e_i. it drops the terms proportional to e times the track
+        // curvature (and Gamma'(theta)), which make the exact hessian indefinite once the plan is further off the line
+        // than the corner radius. unlike projecting the exact hessian onto the PSD cone, this keeps the theta-theta
+        // curvature at 2 w_1 |l'|^2 > 0, so theta stays tied to the car's position instead of running away along the track.
+        // proxsuite minimizes 1/2 x^T H x + g^T x, so the hessian goes in directly (no extra factor of 1/2)
+        Eigen::Matrix<double, state_dims, state_dims> P_i;
+        StateVec<double> grad_f;
         {
-            StateVec<autodiff::dual2nd> x_i_d = x_i.cast<autodiff::dual2nd>();
-            autodiff::dual2nd f_x;
-            autodiff::hessian(cost, autodiff::wrt(x_i_d), autodiff::at(x_i_d), f_x, grad_f, H_x_i);
+            const autodiff::dual2nd theta_i = x_i(6);
+            const Eigen::Vector2d l_prime = spline_t_prime(theta_i).cast<double>();
+            const Eigen::Vector2d e_i = spline_t(theta_i).cast<double>() - x_i.head<2>();
+            const Eigen::Matrix2d Gamma = gamma(theta_i).cast<double>();
+            Eigen::Matrix<double, 2, state_dims> J = Eigen::Matrix<double, 2, state_dims>::Zero();
+            J.block<2, 2>(0, 0) = -Eigen::Matrix2d::Identity();
+            J.col(6) = l_prime;
+            P_i = 2 * J.transpose() * Gamma * J;
+            grad_f = 2 * J.transpose() * Gamma * e_i;
         }
-        // construct the second order taylor expansion of the cost around x_i.
-        // proxsuite minimizes 1/2 x^T H x + g^T x, so the hessian goes in directly (no extra factor of 1/2).
-        // the contouring cost is not convex in theta, so project the hessian onto the PSD cone since proxsuite requires a convex QP
-        const Eigen::SelfAdjointEigenSolver<Eigen::Matrix<double, state_dims, state_dims>> eig(H_x_i);
-        const Eigen::Matrix<double, state_dims, state_dims> P_i = eig.eigenvectors()
-            * eig.eigenvalues().cwiseMax(0.0).asDiagonal()
-            * eig.eigenvectors().transpose();
         // keep the model's gradient at x_i equal to grad_f
         const StateVec<double> q_i = grad_f - P_i * x_i;
 

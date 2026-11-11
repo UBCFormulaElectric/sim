@@ -77,8 +77,8 @@ precompute_projection_grid()  # slow, so do it once now, before the controller t
 
 manual_control_output = ControlOutput(0, 0, 0)
 
-# tuned with tune.py for the 20 Hz controller and 5 ms sim step, with A_X ±5: ~14.9 s laps from 51 of the 54 start
-# positions (standing starts from 30, 55 and 56 fail). with A_X ±10: ~13.9 s laps, but only from 34 of them
+# tuned with tune.py (Gauss-Newton contouring cost, smoothed center line) for the 20 Hz controller and 5 ms sim step,
+# with A_X ±10: ~14.6 s laps from 45 of the 54 start positions
 plots = ControlPlots(params, ui_scale)
 logger = MdfLogger(params)
 # the sim, the controller and drawing each run on their own thread, at their own rate
