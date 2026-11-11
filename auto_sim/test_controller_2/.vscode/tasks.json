@@ -1,0 +1,17 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cmake",
+			"label": "Build Controller",
+			"command": "build",
+			"targets": [
+				"controller"
+			],
+			"preset": "__defaultBuildPreset__",
+			"group": "build",
+			"problemMatcher": [],
+			"detail": "CMake template build task"
+		}
+	]
+}
